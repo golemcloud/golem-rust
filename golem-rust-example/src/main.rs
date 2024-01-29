@@ -3,15 +3,11 @@ mod generated;
 use generated::*;
 use golem_rust::WIT;
 
-/**
- * TODO come up with more examples
- */
 fn main() {
     // struct without fields
     let empty = Empty {};
 
     let wit_empty: WitEmpty = empty.into();
-
     // struct
     let me = Person {
         name: "Jaro".to_owned(),
@@ -38,6 +34,39 @@ fn main() {
     let bid_converted: WitBidResult = bid.into();
 }
 
+// uncomment
+//#[golem_rust::create_wit_file]
+mod golem_component {
+
+    enum IpAddrEmpty {
+        V4,
+        V6,
+    }
+
+    struct Op {}
+
+    pub struct X {
+        SoMe_Array: std::option::Option<f64>,
+        real_result: Option<String>,
+        another: [String],
+    }
+
+    pub struct BidderId {
+        pub bidder_id: std::result::Result<IpAddrEmpty, String>,
+        pub verified: bool,
+    }
+
+    trait AuctionService {
+        fn create_bidder(full_name: String, address: String, age: u16) -> BidderId;
+
+        fn register() -> ();
+
+        fn register2() -> X;
+
+        fn register3();
+    }
+}
+
 #[derive(WIT)]
 #[wit(WitEmpty)]
 struct Empty {}
@@ -61,7 +90,7 @@ pub enum Colors {
 
     // TODO check this
     #[rename("Yellow2")]
-   // #[rename("Yellow2")]
+    // #[rename("Yellow2")]
     Yellow,
 }
 
