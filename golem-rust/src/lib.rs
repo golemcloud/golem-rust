@@ -5,21 +5,18 @@ use proc_macro::TokenStream;
 use syn::*;
 
 /**
- * Usage:
- *      
-    #[derive(WIT)]
-    #[wit(WitPerson)]
-    pub struct Person {
-        
-        pub name: String,
+   #[derive(WIT)]
+   #[wit(WitPerson)]
+   pub struct Person {
 
-        #[rename("age2")]
-        pub age: i32
-    }
- */
+       pub name: String,
+
+       #[rename("age2")]
+       pub age: i32
+   }
+*/
 #[proc_macro_derive(WIT, attributes(wit, rename))]
 pub fn derive(input: TokenStream) -> TokenStream {
-
     let mut input = parse_macro_input!(input as DeriveInput);
 
     der_macro::expand_wit(&mut input)
@@ -27,34 +24,26 @@ pub fn derive(input: TokenStream) -> TokenStream {
         .into()
 }
 
-
 /**
- * 
- * 
+   #[golem_rust::create_wit_file]
+   mod golem_component {
 
-  TODO
-  - proper error handling
-  - do not generate by every compilation
+       enum IpAddr {
+           V4(String),
+           V6(String),
+       }
 
-    #[golem_rust::create_wit_file]
-    mod golem_component {
+       pub struct BidderId {
+           pub bidder_id: String,
+           pub verified: bool
+       }
 
-        enum IpAddr {
-            V4(String),
-            V6(String),
-        }
+       trait AuctionService {
 
-        pub struct BidderId {
-            pub bidder_id: String,
-            pub verified: bool
-        }
-
-        trait AuctionService {
-
-            fn create_bidder(full_name: String, address: String, age: u16) -> BidderId;
-        }
-    }
- */
+           fn create_bidder(full_name: String, address: String, age: u16) -> BidderId;
+       }
+   }
+*/
 #[proc_macro_attribute]
 pub fn create_wit_file(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let item_moved = item.clone();

@@ -34,39 +34,6 @@ fn main() {
     let bid_converted: WitBidResult = bid.into();
 }
 
-// uncomment
-//#[golem_rust::create_wit_file]
-mod golem_component {
-
-    enum IpAddrEmpty {
-        V4,
-        V6,
-    }
-
-    struct Op {}
-
-    pub struct X {
-        SoMe_Array: std::option::Option<f64>,
-        real_result: Option<String>,
-        another: [String],
-    }
-
-    pub struct BidderId {
-        pub bidder_id: std::result::Result<IpAddrEmpty, String>,
-        pub verified: bool,
-    }
-
-    trait AuctionService {
-        fn create_bidder(full_name: String, address: String, age: u16) -> BidderId;
-
-        fn register() -> ();
-
-        fn register2() -> X;
-
-        fn register3();
-    }
-}
-
 #[derive(WIT)]
 #[wit(WitEmpty)]
 struct Empty {}
@@ -105,4 +72,84 @@ pub enum BidResult {
 
     #[rename("Someone2")]
     Someone { name: String, age: u32 },
+}
+
+//#[golem_rust::create_wit_file]
+mod golem_component {
+
+    enum IpAddrEmpty {
+        V4,
+        V6,
+    }
+
+    struct Op {}
+
+    pub struct X {
+        SoMe_Array: std::option::Option<f64>,
+        real_result: Option<String>,
+        another: [String],
+    }
+
+    pub struct BidderId {
+        pub bidder_id: std::result::Result<IpAddrEmpty, String>,
+        pub verified: bool,
+    }
+
+    trait AuctionService {
+        fn create_bidder(full_name: String, address: String, age: u16) -> BidderId;
+
+        fn register() -> ();
+
+        fn register2() -> X;
+
+        fn register3();
+    }
+}
+
+//#[golem_rust::create_wit_file]
+mod auction_app {
+    
+    struct BidderId {
+        bidder_id: String 
+    }
+
+    struct AuctionId {
+        auction_id: String
+    }
+
+    struct Auction {
+        auction_id: Option<AuctionId>,
+        name: String, 
+        description: String,
+        starting_price: f32,
+        deadline: u64,
+    }
+
+    enum BidResult {
+        Failure(String),
+        Success 
+    }
+
+    trait AuctionService {
+
+        fn initialize(auction: Auction);
+
+        fn bid(bidder_id: BidderId, price: f32) -> BidResult;
+
+        fn close_auction() -> Option<BidderId>;
+    }
+
+    trait AuctionService2 {
+
+        fn create_bidder(name: String, address: String) -> BidderId;
+
+        fn create_auction(name: String, description: String, starting_price: f32, deadline: u64) -> AuctionId;
+
+        fn get_auctions() -> Vec<Auction>;
+    }
+}
+
+//#[golem_rust::create_wit_file]
+mod package_name {
+
 }

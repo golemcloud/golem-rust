@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use std::fs::File;
 use std::io::prelude::*;
@@ -25,7 +25,7 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
 
     let items = ast.clone().content.unwrap().1;
 
-    let interface_content: syn::Result<Vec<_>> = items
+    let module_content: syn::Result<Vec<_>> = items
         .into_iter()
         .map(|item| {
             match item {
@@ -34,35 +34,33 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
 
                     let record_title = pascal_case_to_kebab_case(ident);
 
-                    check_unsupported_identifiers(record_title.clone());
+                    check_unsupported_identifiers(record_title.clone(), i.ident.span())?;
+                        
+                    let fields: syn::Result<Vec<_>> = i
+                    .fields
+                    .into_iter()
+                    .map(|f| {
+                        let field_name = f
+                            .ident
+                            .unwrap()
+                            .to_string()
+                            .to_lowercase()
+                            .replace("_", "-");
 
-                    let fields = i
-                        .fields
-                        .into_iter()
-                        .map(|f| {
-                            let field_name = f
-                                .ident
-                                .unwrap()
-                                .to_string()
-                                .to_lowercase()
-                                .replace("_", "-");
+                        resolve_type(f.ty).map(|tpe| format!("{}: {}", field_name, tpe))
+                    })
+                    .collect();
+                    let joined = fields?.join(", \n\t\t");
 
-                            let tpe = resolve_type(f.ty);
-
-                            format!("{}: {}", field_name, tpe)
-                        })
-                        .collect::<Vec<String>>()
-                        .join(", \n\t\t");
-
-                    if fields.is_empty() {
+                    if joined.is_empty() {
                         Ok(format!("    record {} {{}}", record_title))
                     } else {
                         Ok(format!(
-                            "
+                        "
     record {} {{
         {},
     }}",
-                            record_title, fields
+                        record_title, joined
                         ))
                     }
                 }
@@ -70,10 +68,11 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
                     // ignored - we probably don't care about a trait name
                     let _ = pascal_case_to_kebab_case(i.ident.to_string());
 
-                    Ok(i.items
+                    let contents: syn::Result<Vec<_>> = i
+                        .items
                         .into_iter()
                         .map(|trait_item| {
-                            let (fun_title, params, ret_tpe) = match trait_item {
+                            let y = match trait_item {
                                 TraitItem::Fn(tif) => {
                                     let signature = tif.sig.clone();
 
@@ -85,46 +84,52 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
 
                                     let ret_tpe = extract_return_type(signature.output);
 
-                                    let params = signature
+                                    let params: syn::Result<Vec<_>> = signature
                                         .inputs
                                         .into_iter()
                                         .map(|arg| match arg {
                                             FnArg::Typed(pat_type) => pat_type_to_param(pat_type),
                                             FnArg::Receiver(_) => {
-                                                panic!("do proper error handling later")
+                                                Err(syn::Error::new(arg.span(), "'sefl' not supported. If you think this should be supported, please open an issue https://github.com/golemcloud/golem-rust/issues"))
                                             }
                                         })
-                                        .collect::<Vec<String>>()
-                                        .join(", ");
+                                        .collect();
 
-                                    (fun_title, params, ret_tpe)
+                                    let pars = params?;
+                                    let ret_tp = ret_tpe?;
+
+                                    Ok((fun_title, pars.join(", "), ret_tp))
                                 }
-                                _ => panic!("unsupported"),
+                                _ => Err(syn::Error::new(trait_item.span(), "Unknown element inside trait. If you think this should be supported, please open an issue https://github.com/golemcloud/golem-rust/issues")),
                             };
-                            if ret_tpe.is_empty() {
-                                format!(
-                                    "
+
+                            y.map(|(fun_title, params, ret_tpe)| {
+                                if ret_tpe.is_empty() {
+                                    format!(
+                                        "
     {}: func({})
-                ",
-                                    fun_title, params
-                                )
-                            } else {
-                                format!(
-                                    "
+                    ",
+                                        fun_title, params
+                                    )
+                                } else {
+                                    format!(
+                                        "
     {}: func({}) -> {}
-                ",
-                                    fun_title, params, ret_tpe
-                                )
-                            }
+                    ",
+                                        fun_title, params, ret_tpe
+                                    )
+                                }
+                            })
                         })
-                        .collect::<Vec<String>>()
-                        .join("\n"))
+                        .collect();
+
+                    Ok(contents?.join("\n"))
                 }
                 // Do we need to distinguish between WIT enum and variant ?
                 Item::Enum(item_enum) => {
                     let variant_title = pascal_case_to_kebab_case(item_enum.ident.to_string());
 
-                    let variant_body = item_enum
+                    let variant_body: syn::Result<Vec<_>> = item_enum
                         .variants
                         .into_iter()
                         .map(|variant| {
@@ -132,30 +137,29 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
 
                             match variant.fields {
                                 Fields::Named(named_fields) => {
-                                    let tpes = named_fields
+                                    let tpes: syn::Result<Vec<_>> = named_fields
                                         .named
                                         .into_iter()
                                         .map(|f| resolve_type(f.ty))
-                                        .collect::<Vec<String>>()
-                                        .join(", ");
+                                        .collect();
 
-                                    format!("{}({})", variant_name, tpes)
+                                    tpes.map(|t| format!("{}({})", variant_name, t.join(", ")))
                                 }
-                                Fields::Unit => variant_name,
+                                Fields::Unit => Ok(variant_name),
                                 Fields::Unnamed(fields) => {
-                                    let tpes = fields
+                                    let tpes: syn::Result<Vec<_>> = fields
                                         .unnamed
                                         .into_iter()
                                         .map(|f| resolve_type(f.ty))
-                                        .collect::<Vec<String>>()
-                                        .join(", ");
+                                        .collect();
 
-                                    format!("{}({})", variant_name, tpes)
+                                    tpes.map(|t| format!("{}({})", variant_name, t.join(", ")))
                                 }
                             }
                         })
-                        .collect::<Vec<String>>()
-                        .join(", \n \t\t");
+                        .collect();
+
+                    let var_body = variant_body?.join(", \n \t\t");
 
                     Ok(format!(
                         "
@@ -163,9 +167,17 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
         {}
     }}
                 ",
-                        variant_title, variant_body
+                        variant_title, var_body
                     ))
-                }
+                },
+                Item::Use(use_item) => Err(syn::Error::new(
+                    use_item.span(),
+                    format!("'use' imports are not supportedin create_wit_file macro."),
+                )),
+                Item::Const(const_item) => Err(syn::Error::new(
+                    const_item.span(),
+                    format!("Constants are not supported in create_wit_file macro."),
+                )),
                 a => Err(syn::Error::new(
                     ast.ident.span(),
                     format!("Unknown item in module - {:#?}", a),
@@ -174,10 +186,12 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
         })
         .collect();
 
-    file.write_all(
-        format!(
-            "package {}
-
+    module_content
+        .and_then(|content| {
+            file.write_all(
+                format!(
+                    "package {}
+    
 interface api {{
 {}
 }}
@@ -185,17 +199,19 @@ interface api {{
 world golem-service {{
     export api
 }}",
-            package_name,
-            interface_content.unwrap().join("\n")
-        )
-        .trim()
-        .as_bytes(),
-    )
-    .map_err(|e| syn::Error::new(ast.span(), format!("Error while writing to file {}", e)))?;
-
-    // don't do anything with ast
-    let result = quote!(#ast);
-    Ok(result)
+                    package_name,
+                    content.join("\n")
+                )
+                .trim()
+                .as_bytes(),
+            )
+            .map_err(|e| syn::Error::new(ast.span(), format!("Error while writing to file {}", e)))
+        })
+        .map(|_| {
+            let result = quote!(#ast);
+            // don't do anything with ast
+            result
+        })
 }
 
 // AuctionService -> auction-service
@@ -220,27 +236,30 @@ fn pascal_case_to_kebab_case(pascal_case: String) -> String {
     first_letter
 }
 
-fn extract_return_type(return_type: ReturnType) -> String {
+fn extract_return_type(return_type: ReturnType) -> syn::Result<String> {
     match return_type {
-        ReturnType::Default => "".to_owned(),
+        ReturnType::Default => Ok("".to_owned()),
         ReturnType::Type(_, tpe) => resolve_type(*tpe),
     }
 }
 
 // full_name: String to full-name: string for trait functions
-fn pat_type_to_param(pat_type: PatType) -> String {
-    let pat = pat_type.pat;
+fn pat_type_to_param(pat_type: PatType) -> syn::Result<String> {
+    let pat = pat_type.clone().pat;
 
-    let mut param_name = match *pat {
-        Pat::Ident(i) => i.ident.to_string().to_lowercase().replace("_", "-"),
-        _ => panic!("unsupported"),
+    let param_name = match *pat {
+        Pat::Ident(i) => Ok(i.ident.to_string().to_lowercase().replace("_", "-")),
+        _ => Err(syn::Error::new(pat_type.span(), "Unexpected param name. If you think this should be supported, please open an issue https://github.com/golemcloud/golem-rust/issues")),
     };
 
-    let param_tpe = resolve_type(*pat_type.ty);
+    let mut name = param_name?;
 
-    param_name.push_str(": ");
-    param_name.push_str(&param_tpe);
-    param_name
+    let param_tpe = resolve_type(*pat_type.ty);
+    let tpe = param_tpe?;
+
+    name.push_str(": ");
+    name.push_str(&tpe);
+    Ok(name)
 }
 
 fn convert_rust_types_to_wit_types(rust_tpe: String) -> String {
@@ -260,25 +279,34 @@ fn convert_rust_types_to_wit_types(rust_tpe: String) -> String {
         "f64" => "float64".to_owned(),
         "String" => "string".to_owned(),
         "char" => "char".to_owned(),
-        x => pascal_case_to_kebab_case(x.to_owned()), //panic!("is better to pani or return result with error?") // return error here
+        x => pascal_case_to_kebab_case(x.to_owned()),
     }
 }
 
-fn check_unsupported_identifiers(name: String) {
+fn check_unsupported_identifiers(name: String, span: Span) -> syn::Result<()> {
     match name.as_str() {
-        "option" => panic!("expected an identifier or string, found keyword `option`"),
-        "result" => panic!("expected an identifier or string, found keyword `result`"),
-        _ => (),
-    };
+        "option" => Err(syn::Error::new(
+            span,
+            "expected an identifier or string, found keyword `option'",
+        )),
+        "result" => Err(syn::Error::new(
+            span,
+            "expected an identifier or string, found keyword `result`",
+        )),
+        _ => Ok(()),
+    }
 }
 
 // https://component-model.bytecodealliance.org/design/wit.html?search=#built-in-types
 // https://doc.rust-lang.org/book/ch03-02-data-types.html
-fn resolve_type(ty: Type) -> String {
-    match ty {
+fn resolve_type(ty: Type) -> syn::Result<String> {
+    match ty.clone() {
         Type::Path(type_path) => {
             if type_path.path.segments.first().unwrap().ident.to_string() == "super" {
-                panic!("Types need to be defined inside module.")
+                return Err(syn::Error::new(
+                    ty.span(),
+                    "Cannot reference types from outside of module.",
+                ));
             }
 
             // we take last segment e.g. Result from std::result::Result
@@ -289,10 +317,10 @@ fn resolve_type(ty: Type) -> String {
                         let gen_arg = args.args.first().unwrap();
                         match gen_arg {
                             GenericArgument::Type(tpe) => resolve_type(tpe.clone()),
-                            _ => panic!("unhandled"),
+                            _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
                         }
                     }
-                    _ => panic!("unhandled"),
+                    _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
                 }
             } else if let (PathArguments::AngleBracketed(args), true) = (
                 &path_segment.arguments,
@@ -304,26 +332,25 @@ fn resolve_type(ty: Type) -> String {
                     GenericArgument::Type(tpe) => {
                         let tpe_name = resolve_type(tpe.clone());
 
-                        format!("list<{}>", tpe_name)
+                        tpe_name.map(|t| format!("list<{}>", t))
                     }
-                    _ => panic!("unhandled"),
+                    _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
                 }
             } else if let (PathArguments::AngleBracketed(args), true) = (
                 &path_segment.arguments,
                 path_segment.ident.to_string() == "Result",
             ) {
-                let result_arguments = args
+                let result_arguments: syn::Result<Vec<_>> = args
                     .clone()
                     .args
                     .into_iter()
                     .map(|a| match a {
                         GenericArgument::Type(tpe) => resolve_type(tpe.clone()),
-                        _ => panic!("unhandled"),
+                        _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
                     })
-                    .collect::<Vec<String>>()
-                    .join(", ");
+                    .collect();
 
-                format!("result<{}>", result_arguments)
+                result_arguments.map(|c| format!("result<{}>", c.join(", ")))
             } else if let (PathArguments::AngleBracketed(args), true) = (
                 &path_segment.arguments,
                 path_segment.ident.to_string() == "Option",
@@ -333,31 +360,33 @@ fn resolve_type(ty: Type) -> String {
                     GenericArgument::Type(tpe) => {
                         let tpe_name = resolve_type(tpe.clone());
 
-                        format!("option<{}>", tpe_name)
+                        tpe_name.map(|t| format!("option<{}>", t))
                     }
-                    _ => panic!("unhandled"),
+                    _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
                 }
             } else {
-                convert_rust_types_to_wit_types(path_segment.ident.to_string())
+                Ok(convert_rust_types_to_wit_types(
+                    path_segment.ident.to_string(),
+                ))
             }
         }
         Type::Tuple(tuple_type) => {
-            let tuples = tuple_type
+            let ts: syn::Result<Vec<_>> = tuple_type
                 .elems
                 .into_iter()
                 .map(|tpe| resolve_type(tpe))
-                .collect::<Vec<String>>()
-                .join(", ");
+                .collect();
 
-            if tuples.is_empty() {
-                "".to_string()
-            } else {
-                format!("tuple<{tuples}>")
-            }
+            ts.map(|c| {
+                let t = c.join("\n");
+                if t.is_empty() {
+                    "".to_string()
+                } else {
+                    format!("tuple<{}>", t)
+                }
+            })
         }
-        Type::Slice(type_slice) => {
-            format!("list<{}>", resolve_type(*type_slice.elem))
-        }
-        _ => "".to_owned(),
+        Type::Slice(type_slice) => resolve_type(*type_slice.elem).map(|t| format!("list<{}>", t)),
+        _ => Ok("".to_owned()),
     }
 }
