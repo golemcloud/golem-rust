@@ -50,7 +50,27 @@ pub fn create_wit_file(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let mut input = parse_macro_input!(item_moved as ItemMod);
 
-    wit_gen::generate_witfile(&mut input, "../generated.wit".to_owned())
+    let file_name_result = syn::parse2::<syn::Lit>(_attr.into())
+        .map_or_else(|_| {
+            Ok("generated.wit".to_owned())
+        },
+        |literal| {
+            match literal {
+                syn::Lit::Str(lit) => {
+                    let mut n = lit.value();
+                    if n.ends_with(".wit") {
+                        Ok(n)
+                    } else {
+                        n.push_str(".wit");
+                        Ok(n)
+                    }
+                },
+                _ =>  Err(syn::Error::new(literal.span(), "If you want to specify name of the generated file, please input is as a String, otherwise do not input any attributes. \n Generated file will be 'generated.wit'")),
+            }
+        });
+
+    file_name_result
+        .and_then(|file_name| wit_gen::generate_witfile(&mut input, file_name).to_owned())
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }

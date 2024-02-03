@@ -6,13 +6,13 @@ use syn::spanned::Spanned;
 use syn::*;
 
 pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<TokenStream> {
-    eprintln!("{:#?}", ast.clone());
+    eprintln!("AST {:#?}", ast.clone());
 
     // create file
     let mut file = File::create(path).map_err(|e| {
         syn::Error::new(
             ast.span(),
-            format!("Cannot create with file at requested location {}", e),
+            format!("File cannot be created at requested location {}", e),
         )
     })?;
 
@@ -90,7 +90,7 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
                                         .map(|arg| match arg {
                                             FnArg::Typed(pat_type) => pat_type_to_param(pat_type),
                                             FnArg::Receiver(_) => {
-                                                Err(syn::Error::new(arg.span(), "'sefl' not supported. If you think this should be supported, please open an issue https://github.com/golemcloud/golem-rust/issues"))
+                                                Err(syn::Error::new(arg.span(), "Functions with 'sefl' are not supported. \nIf you think this is valid usecase, please open an issue https://github.com/golemcloud/golem-rust/issues"))
                                             }
                                         })
                                         .collect();
@@ -100,22 +100,20 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
 
                                     Ok((fun_title, pars.join(", "), ret_tp))
                                 }
-                                _ => Err(syn::Error::new(trait_item.span(), "Unknown element inside trait. If you think this should be supported, please open an issue https://github.com/golemcloud/golem-rust/issues")),
+                                _ => Err(syn::Error::new(trait_item.span(), "Unexpected item inside trait. For WIT generation, Trait should contain only functions without implementation. \nIf you think this should be supported, please open an issue https://github.com/golemcloud/golem-rust/issues")),
                             };
 
                             y.map(|(fun_title, params, ret_tpe)| {
                                 if ret_tpe.is_empty() {
                                     format!(
                                         "
-    {}: func({})
-                    ",
+    {}: func({})",
                                         fun_title, params
                                     )
                                 } else {
                                     format!(
                                         "
-    {}: func({}) -> {}
-                    ",
+    {}: func({}) -> {}",
                                         fun_title, params, ret_tpe
                                     )
                                 }
@@ -127,6 +125,8 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
                 }
                 // Do we need to distinguish between WIT enum and variant ?
                 Item::Enum(item_enum) => {
+                    let keyword = resolve_enum_or_variant(item_enum.clone());
+
                     let variant_title = pascal_case_to_kebab_case(item_enum.ident.to_string());
 
                     let variant_body: syn::Result<Vec<_>> = item_enum
@@ -163,24 +163,21 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
 
                     Ok(format!(
                         "
-    variant {} {{
+    {} {} {{
         {}
     }}
-                ",
-                        variant_title, var_body
+                ", keyword, variant_title, var_body
                     ))
                 },
-                Item::Use(use_item) => Err(syn::Error::new(
-                    use_item.span(),
-                    format!("'use' imports are not supportedin create_wit_file macro."),
-                )),
-                Item::Const(const_item) => Err(syn::Error::new(
-                    const_item.span(),
-                    format!("Constants are not supported in create_wit_file macro."),
-                )),
+                Item::Type(type_item) => {
+                    let ident = pascal_case_to_kebab_case(type_item.ident.to_string());
+                    let tpe = resolve_type(*type_item.ty)?;
+
+                    Ok(format!("    type {} = {}", ident, tpe))
+                },
                 a => Err(syn::Error::new(
-                    ast.ident.span(),
-                    format!("Unknown item in module - {:#?}", a),
+                    a.span(),
+                    format!("Unexpected item inside module. For WIT generation, only structs, enums, types and traits are supported. \nIf you think what you are trying is a valid use case, please open an issue https://github.com/golemcloud/golem-rust/issues"),
                 )),
             }
         })
@@ -262,6 +259,23 @@ fn pat_type_to_param(pat_type: PatType) -> syn::Result<String> {
     Ok(name)
 }
 
+fn resolve_enum_or_variant(item_enum: ItemEnum) -> String {
+    let is_variant = item_enum
+        .variants
+        .into_iter()
+        .map(|v| v.fields)
+        .any(|fields| match fields {
+            Fields::Unit => false,
+            _ => true,
+        });
+
+    if is_variant {
+        "variant".to_owned()
+    } else {
+        "enum".to_owned()
+    }
+}
+
 fn convert_rust_types_to_wit_types(rust_tpe: String) -> String {
     match rust_tpe.as_str() {
         "bool" => "bool".to_owned(),
@@ -287,11 +301,15 @@ fn check_unsupported_identifiers(name: String, span: Span) -> syn::Result<()> {
     match name.as_str() {
         "option" => Err(syn::Error::new(
             span,
-            "expected an identifier or string, found keyword `option'",
+            "Even though 'Option' is a valid rust name for a data type, WIT considers it a keyword. \nPlease change name to something else.",
         )),
         "result" => Err(syn::Error::new(
             span,
-            "expected an identifier or string, found keyword `result`",
+            "Even though 'Result' is a valid rust name for a data type, WIT considers it a keyword. \nPlease change name to something else.",
+        )),
+        "list" => Err(syn::Error::new(
+            span,
+            "Even though 'List' is a valid rust name for a data type, WIT considers it a keyword. \nPlease change name to something else.",
         )),
         _ => Ok(()),
     }
@@ -305,7 +323,7 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
             if type_path.path.segments.first().unwrap().ident.to_string() == "super" {
                 return Err(syn::Error::new(
                     ty.span(),
-                    "Cannot reference types from outside of module.",
+                    "Cannot reference types from outside of a module with 'super' keyword as macro cannot see their full implementation. \nWIT only knows about Result, Option, Vec, tuples, arrays and user defined data types that needs to reside inside the module.",
                 ));
             }
 
@@ -317,10 +335,10 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
                         let gen_arg = args.args.first().unwrap();
                         match gen_arg {
                             GenericArgument::Type(tpe) => resolve_type(tpe.clone()),
-                            _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
+                            _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue and describe your use case. https://github.com/golemcloud/golem-rust/issues")),
                         }
                     }
-                    _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
+                    _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue and describe your use case. https://github.com/golemcloud/golem-rust/issues")),
                 }
             } else if let (PathArguments::AngleBracketed(args), true) = (
                 &path_segment.arguments,
@@ -334,7 +352,7 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
 
                         tpe_name.map(|t| format!("list<{}>", t))
                     }
-                    _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
+                    _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue and describe your use case. https://github.com/golemcloud/golem-rust/issues")),
                 }
             } else if let (PathArguments::AngleBracketed(args), true) = (
                 &path_segment.arguments,
@@ -346,7 +364,7 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
                     .into_iter()
                     .map(|a| match a {
                         GenericArgument::Type(tpe) => resolve_type(tpe.clone()),
-                        _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
+                        _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue and describe your use case. https://github.com/golemcloud/golem-rust/issues")),
                     })
                     .collect();
 
@@ -362,7 +380,7 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
 
                         tpe_name.map(|t| format!("option<{}>", t))
                     }
-                    _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue https://github.com/golemcloud/golem-rust/issues")),
+                    _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue and describe your use case. https://github.com/golemcloud/golem-rust/issues")),
                 }
             } else {
                 Ok(convert_rust_types_to_wit_types(

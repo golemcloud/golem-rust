@@ -74,7 +74,7 @@ pub enum BidResult {
     Someone { name: String, age: u32 },
 }
 
-//#[golem_rust::create_wit_file]
+//#[golem_rust::create_wit_file("golem_component")]
 mod golem_component {
 
     enum IpAddrEmpty {
@@ -82,12 +82,9 @@ mod golem_component {
         V6,
     }
 
-    struct Op {}
-
     pub struct X {
-        SoMe_Array: std::option::Option<f64>,
-        real_result: Option<String>,
-        another: [String],
+        SoMe_Array: Option<f64>,
+        another: [String], // Vec -> list, Box<_>
     }
 
     pub struct BidderId {
@@ -106,44 +103,47 @@ mod golem_component {
     }
 }
 
-//#[golem_rust::create_wit_file]
+//#[golem_rust::create_wit_file("auction_app.wit")]
 mod auction_app {
-    
+
     struct BidderId {
-        bidder_id: String 
+        bidder_id: String,
     }
 
     struct AuctionId {
-        auction_id: String
+        auction_id: String,
     }
 
     struct Auction {
         auction_id: Option<AuctionId>,
-        name: String, 
+        name: String,
         description: String,
         starting_price: f32,
-        deadline: u64,
+        deadline: Deadline,
     }
 
     enum BidResult {
         Failure(String),
-        Success 
+        Success,
     }
 
-    trait AuctionService {
+    type Deadline = u64;
 
+    trait AuctionService {
         fn initialize(auction: Auction);
 
         fn bid(bidder_id: BidderId, price: f32) -> BidResult;
 
         fn close_auction() -> Option<BidderId>;
-    }
-
-    trait AuctionService2 {
 
         fn create_bidder(name: String, address: String) -> BidderId;
 
-        fn create_auction(name: String, description: String, starting_price: f32, deadline: u64) -> AuctionId;
+        fn create_auction(
+            name: String,
+            description: String,
+            starting_price: f32,
+            deadline: u64,
+        ) -> AuctionId;
 
         fn get_auctions() -> Vec<Auction>;
     }
@@ -151,5 +151,4 @@ mod auction_app {
 
 //#[golem_rust::create_wit_file]
 mod package_name {
-
 }
