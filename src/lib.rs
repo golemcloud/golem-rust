@@ -6,7 +6,7 @@ use syn::*;
 
 /// Derives `From<>` And `Into<>` typeclasses for wit-bindgen generated data types (e.g. `WitPerson`)
 /// and custom domain data types (e.g. `Person`). So it's possible to write code like this:
-/// ```
+/// ```ignore
 ///  let person = Person {
 ///     name: "John Doe".to_owned(),
 ///     age: 42,
@@ -27,7 +27,7 @@ use syn::*;
 ///  }
 ///
 ///
-///  #[derive(WIT_From_Into)]
+///  #[derive(golem_rust::WIT_From_Into)]
 ///  #[wit_file_name(WitPerson)]
 ///  pub struct Person {
 ///
@@ -100,7 +100,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
 ///
 /// File `auction_app.wit` is then created with the following content.
 ///
-/// ```
+/// ```ignore
 /// package auction:app
 ///
 /// interface api {
