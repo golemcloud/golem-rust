@@ -15,7 +15,7 @@ use syn::*;
 ///  let converted: WitPerson = person.into();
 /// ```
 ///
-/// `#[wit_file_name(WitPerson)]` is optional. Defines name of the wit-bindgen generated data type. Default is name of this data type prepanded with 'Wit'.
+/// `#[wit_type_name(WitPerson)]` is optional. Defines name of the wit-bindgen generated data type. Default is name of this data type prepanded with 'Wit'.
 ///
 /// `#[rename_field("age2")]` is optional. Anotates field and specify field name in the other data type, in case it's different.
 ///
@@ -28,7 +28,7 @@ use syn::*;
 ///
 ///
 ///  #[derive(golem_rust::WIT_From_Into)]
-///  #[wit_file_name(WitPerson)]
+///  #[wit_type_name(WitPerson)]
 ///  pub struct Person {
 ///
 ///      #[rename_field("title")]
@@ -37,7 +37,7 @@ use syn::*;
 ///      pub age: i32
 ///  }
 /// ```
-#[proc_macro_derive(WIT_From_Into, attributes(wit_file_name, rename_field))]
+#[proc_macro_derive(WIT_From_Into, attributes(wit_type_name, rename_field))]
 pub fn derive(input: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(input as DeriveInput);
 

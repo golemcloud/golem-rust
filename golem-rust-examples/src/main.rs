@@ -24,11 +24,11 @@ fn main() {
 }
 
 #[derive(golem_rust::WIT_From_Into)]
-#[wit_file_name(WitEmpty)]
+#[wit_type_name(WitEmpty)]
 struct Empty {}
 
 #[derive(golem_rust::WIT_From_Into)]
-#[wit_file_name(WitPerson)]
+#[wit_type_name(WitPerson)]
 pub struct Person {
     #[rename_field("name2")]
     pub name: String,
@@ -57,6 +57,7 @@ pub enum BidResult {
     Someone { name: String, age: u32 },
 }
 
+//uncomment
 //#[golem_rust::create_wit_file("golem_component")]
 mod golem_component {
 
@@ -91,6 +92,7 @@ mod golem_component {
     }
 }
 
+//uncomment
 //#[golem_rust::create_wit_file("example.wit")]
 mod golem_component2 {
 
@@ -103,6 +105,7 @@ mod golem_component2 {
     }
 }
 
+//uncomment
 //#[golem_rust::create_wit_file("auction_app.wit")]
 mod auction_app {
 
@@ -149,5 +152,6 @@ mod auction_app {
     }
 }
 
+//uncomment
 //#[golem_rust::create_wit_file]
 mod package_name {}

@@ -175,7 +175,7 @@ pub fn expand_wit(ast: &mut syn::DeriveInput) -> syn::Result<TokenStream> {
 }
 
 /**
- * Parses #[wit_file_name(WitPerson)] or #[wit_file_name("WitPerson")] and returns Ok(None) in case "wit_file_name" attribute does not exists or errors out in case of weird structure like #[wit_file_name(100)]
+ * Parses #[wit_type_name(WitPerson)] or #[wit_type_name("WitPerson")] and returns Ok(None) in case "wit_type_name" attribute does not exists or errors out in case of weird structure like #[wit_type_name(100)]
  */
 fn extract_data_type_name(
     attrs: Vec<syn::Attribute>,
@@ -184,7 +184,7 @@ fn extract_data_type_name(
     let extracted_name = attrs
         .into_iter()
         .find_map(|attr| match attr.meta {
-            syn::Meta::List(ml) if ml.path.segments.first().unwrap().ident == "wit_file_name" => {
+            syn::Meta::List(ml) if ml.path.segments.first().unwrap().ident == "wit_type_name" => {
 
                 Some(syn::parse2::<syn::Ident>(ml.tokens.clone())
                     .or({
@@ -192,12 +192,12 @@ fn extract_data_type_name(
                             .map_err(|_| {
                                 syn::Error::new(
                                     ml.tokens.span(),
-                                    "Argument to \"wit_file_name\" must be a either a single data type #[wiwit_file_namet(WitPerson)] or a string #[wit_file_name(\"WitPerson\")]")})
+                                    "Argument to \"wit_type_name\" must be a either a single data type #[wiwit_type_namet(WitPerson)] or a string #[wit_type_name(\"WitPerson\")]")})
                             .and_then(|l| match l {
                                 syn::Lit::Str(lit) => Ok(syn::Ident::new(&lit.value(), lit.span())),
                                 _ => Err(syn::Error::new(
                                                     l.span(),
-                                                    "Argument to \"wwit_file_nameit\" must be a either a data type #[wit_file_name(WitPerson)] or a string #[wit_file_name(\"WitPerson\")]",
+                                                    "Argument to \"wwit_type_nameit\" must be a either a data type #[wit_type_name(WitPerson)] or a string #[wit_type_name(\"WitPerson\")]",
                                     ))
                             })
                     }))

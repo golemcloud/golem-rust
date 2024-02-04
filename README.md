@@ -55,11 +55,11 @@ then the following code compiles without problems
 
 #### Custom data type names
 
-The above macro assumed that the data type for which we are deriving `From<>` and `Into<>` is called `WitPerson`. By default macro assumes that the name of the data type is `Wit` + annotated data type name. In case the name is different, we need to add `#[wit_file_name(DerivedName)]` attribute. 
+The above macro assumed that the data type for which we are deriving `From<>` and `Into<>` is called `WitPerson`. By default macro assumes that the name of the data type is `Wit` + annotated data type name. In case the name is different, we need to add `#[wit_type_name(DerivedName)]` attribute. 
 
 ```rust
     #[derive(golem_rust::WIT_From_Into))]
-    #[wit_file_name(DerivedName)]
+    #[wit_type_name(DerivedName)]
     pub struct Person {
         pub name: String,
         pub age: i32,
@@ -73,7 +73,7 @@ In case the field names in derived data type are different we can use field attr
 
 ```rust
     #[derive(golem_rust::WIT_From_Into))]
-    #[wit_file_name(WitPerson)]
+    #[wit_type_name(WitPerson)]
     pub struct Person {
 
         #[rename_field("name2")]
@@ -91,7 +91,7 @@ Very similar to structs, let's say we have the following enum data type:
 
 ```rust 
     #[derive(golem_rust::WIT_From_Into))]
-    #[wit_file_name(SimilarColors)] 
+    #[wit_type_name(SimilarColors)] 
     pub enum Colors {
         Red,
         White,
