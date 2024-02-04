@@ -1,21 +1,11 @@
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::prelude::*;
 use syn::spanned::Spanned;
 use syn::*;
 
-pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<TokenStream> {
-    eprintln!("AST {:#?}", ast.clone());
-
-    // create file
-    let mut file = File::create(path).map_err(|e| {
-        syn::Error::new(
-            ast.span(),
-            format!("File cannot be created at requested location {}", e),
-        )
-    })?;
-
+pub fn generate_witfile(ast: &mut syn::ItemMod, file_name: String) -> syn::Result<TokenStream> {
     let package_name = ast
         .clone()
         .ident
@@ -184,26 +174,7 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, path: String) -> syn::Result<Tok
         .collect();
 
     module_content
-        .and_then(|content| {
-            file.write_all(
-                format!(
-                    "package {}
-    
-interface api {{
-{}
-}}
-
-world golem-service {{
-    export api
-}}",
-                    package_name,
-                    content.join("\n")
-                )
-                .trim()
-                .as_bytes(),
-            )
-            .map_err(|e| syn::Error::new(ast.span(), format!("Error while writing to file {}", e)))
-        })
+        .and_then(|content| write_to_file(file_name, package_name, content, ast.span()))
         .map(|_| {
             let result = quote!(#ast);
             // don't do anything with ast
@@ -407,4 +378,35 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
         Type::Slice(type_slice) => resolve_type(*type_slice.elem).map(|t| format!("list<{}>", t)),
         _ => Ok("".to_owned()),
     }
+}
+
+fn write_to_file(
+    file_name: String,
+    package_name: String,
+    content: Vec<String>,
+    ast_span: Span,
+) -> Result<()> {
+    let mut file = File::create(file_name.clone())
+        .map_err(|e| syn::Error::new(ast_span, format!("Error while creating file {}", e)))?;
+
+    file.write_all(
+        format!(
+            "package {}
+
+interface api {{
+    {}
+}}
+
+world golem-service {{
+    export api
+}}",
+            package_name,
+            content.join("\n")
+        )
+        .trim()
+        .as_bytes(),
+    )
+    .map_err(|e| syn::Error::new(ast_span, format!("Error while writing to file {}", e)))?;
+
+    Ok(())
 }

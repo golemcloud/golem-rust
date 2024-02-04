@@ -181,7 +181,7 @@ pub fn expand_wit(ast: &mut syn::DeriveInput) -> syn::Result<TokenStream> {
 }
 
 /**
- * Parses #[wit(WitPerson)] or #[wit("WitPerson")] and returns Ok(None) in case "wit" attribute does not exists or errors out in case of weird structure like #[wit(100)]
+ * Parses #[wit_file_name(WitPerson)] or #[wit_file_name("WitPerson")] and returns Ok(None) in case "wit_file_name" attribute does not exists or errors out in case of weird structure like #[wit_file_name(100)]
  */
 fn extract_data_type_name(
     attrs: Vec<syn::Attribute>,
@@ -190,7 +190,7 @@ fn extract_data_type_name(
     let extracted_name = attrs
         .into_iter()
         .find_map(|attr| match attr.meta {
-            syn::Meta::List(ml) if ml.path.segments.first().unwrap().ident == "wit" => {
+            syn::Meta::List(ml) if ml.path.segments.first().unwrap().ident == "wit_file_name" => {
 
                 Some(syn::parse2::<syn::Ident>(ml.tokens.clone())
                     .or({
@@ -198,12 +198,12 @@ fn extract_data_type_name(
                             .map_err(|_| {
                                 syn::Error::new(
                                     ml.tokens.span(),
-                                    "Argument to \"wit\" must be a either a single data type #[wit(WitPerson)] or a string #[wit(\"WitPerson\")]")})
+                                    "Argument to \"wit_file_name\" must be a either a single data type #[wiwit_file_namet(WitPerson)] or a string #[wit_file_name(\"WitPerson\")]")})
                             .and_then(|l| match l {
                                 syn::Lit::Str(lit) => Ok(syn::Ident::new(&lit.value(), lit.span())),
                                 _ => Err(syn::Error::new(
                                                     l.span(),
-                                                    "Argument to \"wit\" must be a either a data type #[wit(WitPerson)] or a string #[wit(\"WitPerson\")]",
+                                                    "Argument to \"wwit_file_nameit\" must be a either a data type #[wit_file_name(WitPerson)] or a string #[wit_file_name(\"WitPerson\")]",
                                     ))
                             })
                     }))
@@ -221,23 +221,26 @@ fn extract_data_type_name(
 }
 
 /**
- * Looks for #[rename("naw_field_name")] attributes in the attribute list.
+ * Looks for #[rename_field("naw_field_name")] attributes in the attribute list.
  *
  * If there are none, returns original ident.
- * Errors out if there's a wrong format like #[rename("first", "second")] or #[rename(100)]
+ * Errors out if there's a wrong format like #[rename_field("first", "second")] or #[rename_field(100)]
  */
 fn extract_field_name(attrs: Vec<syn::Attribute>, original: syn::Ident) -> syn::Result<syn::Ident> {
     let rename_is_defined = attrs.into_iter().find_map(|attr| match attr.meta.clone() {
-        syn::Meta::List(ml) if (ml.path.segments.first().unwrap().ident == "rename") => Some(
+        syn::Meta::List(ml) if (ml.path.segments.first().unwrap().ident == "rename_field") => Some(
             syn::parse2::<syn::Lit>(ml.tokens.clone())
                 .map_err(|_| {
-                    syn::Error::new(ml.path.span(), "Argument to rename must be a single String")
+                    syn::Error::new(
+                        ml.path.span(),
+                        "Argument to 'rename_field' must be a single String",
+                    )
                 })
                 .and_then(|l| match l {
                     syn::Lit::Str(lit) => Ok(syn::Ident::new(&lit.value(), lit.span())),
                     _ => Err(syn::Error::new(
                         l.span(),
-                        "Argument to rename must be a String",
+                        "Argument to 'rename_field' must be a String",
                     )),
                 }),
         ),

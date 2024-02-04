@@ -1,7 +1,6 @@
 mod generated;
 
 use generated::*;
-use golem_rust::WIT;
 
 fn main() {
     // struct without fields
@@ -34,43 +33,40 @@ fn main() {
     let bid_converted: WitBidResult = bid.into();
 }
 
-#[derive(WIT)]
-#[wit(WitEmpty)]
+#[derive(golem_rust::WIT_From_Into)]
+#[wit_file_name(WitEmpty)]
 struct Empty {}
 
-#[rename("dead_code")] // nonsense just to check if such attributes don't interfere
-#[derive(WIT)]
-#[wit(WitPerson)] // optional as "Wit + classname" is the default
+#[derive(golem_rust::WIT_From_Into)]
+#[wit_file_name(WitPerson)] // optional as "Wit + classname" is the default
 pub struct Person {
     #[rustfmt::skip] // to check if other attributes don't interfere
-    #[rename("name2")]
+    #[rename_field("name2")]
     pub name: String,
 
     pub age: i32,
 }
 
-#[derive(WIT)]
-#[rename("dead_code")] // nonsense just to check if such attributes don't interfere
+#[derive(golem_rust::WIT_From_Into)]
 pub enum Colors {
     Red,
     White,
 
-    // TODO check this
-    #[rename("Yellow2")]
+    #[rename_field("Yellow2")]
     // #[rename("Yellow2")]
     Yellow,
 }
 
-#[derive(WIT)]
-#[rename("dead_code")] // nonsense just to check if such attributes don't interfere
+#[derive(golem_rust::WIT_From_Into)]
+#[rename_field("dead_code")] // nonsense just to check if such attributes don't interfere
 pub enum BidResult {
-    #[rename("Success2")]
+    #[rename_field("Success2")]
     Success,
 
-    #[rename("Failure2")]
+    #[rename_field("Failure2")]
     Failure(String, u32),
 
-    #[rename("Someone2")]
+    #[rename_field("Someone2")]
     Someone { name: String, age: u32 },
 }
 
@@ -100,6 +96,21 @@ mod golem_component {
         fn register2() -> X;
 
         fn register3();
+    }
+}
+
+//#[golem_rust::create_wit_file("example.wit")]
+mod golem_component2 {
+    enum IpAddr {
+        V4(String),
+        V6(String),
+    }
+    pub struct BidderId {
+        pub bidder_id: String,
+        pub verified: bool,
+    }
+    trait AuctionService {
+        fn create_bidder(full_name: String, address: String, age: u16) -> BidderId;
     }
 }
 
@@ -150,5 +161,4 @@ mod auction_app {
 }
 
 //#[golem_rust::create_wit_file]
-mod package_name {
-}
+mod package_name {}
