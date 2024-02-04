@@ -16,7 +16,6 @@ fn main() {
     let yellow = Colors::Yellow;
     let wit_collors: WitColors = yellow.into();
 
-
     let bid = BidResult::Someone {
         name: "Ema".to_string(),
         age: 10,
@@ -31,7 +30,6 @@ struct Empty {}
 #[derive(golem_rust::WIT_From_Into)]
 #[wit_file_name(WitPerson)]
 pub struct Person {
-    
     #[rename_field("name2")]
     pub name: String,
 

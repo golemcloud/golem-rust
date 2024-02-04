@@ -5,6 +5,7 @@ use std::io::prelude::*;
 use syn::spanned::Spanned;
 use syn::*;
 
+#[rustfmt::skip]
 pub fn generate_witfile(ast: &mut syn::ItemMod, file_name: String) -> syn::Result<TokenStream> {
     let package_name = ast
         .clone()
@@ -380,6 +381,7 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
     }
 }
 
+#[rustfmt::skip]
 fn write_to_file(
     file_name: String,
     package_name: String,
