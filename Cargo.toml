@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 homepage = "https://golem.cloud"
-description = "Golem Rust"
+description = "Golem Rust tooling library that facilitates writing Golem backends in Rust"
 
 [lib]
 proc-macro = true

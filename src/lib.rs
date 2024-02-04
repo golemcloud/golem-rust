@@ -115,15 +115,15 @@ pub fn derive(input: TokenStream) -> TokenStream {
 ///
 ///     record auction {
 ///         auction-id: option<auction-id>,
-/// 		name: string,
-/// 		description: string,
-/// 		starting-price: float32,
-/// 		deadline: deadline,
+///         name: string,
+///         description: string,
+///         starting-price: float32,
+///         deadline: deadline,
 ///     }
 ///
 ///     variant bid-result {
 ///         failure(string),
-///  		success
+///         success
 ///     }
 ///                 
 ///     type deadline = u64

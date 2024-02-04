@@ -249,7 +249,7 @@ fn extract_field_name(attrs: Vec<syn::Attribute>, original: syn::Ident) -> syn::
 
 // check if From<> and Into<> can be implemented without making out fake names for unnamed enums
 fn create_fake_names(take: usize) -> Vec<proc_macro2::TokenStream> {
-    return vec![
+    vec![
         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
         's', 't', 'u', 'v', 'x', 'y', 'z',
     ]
@@ -259,5 +259,5 @@ fn create_fake_names(take: usize) -> Vec<proc_macro2::TokenStream> {
         let fake_ident = syn::Ident::new(&fake_name.to_string(), proc_macro2::Span::call_site());
         quote!(#fake_ident)
     })
-    .collect();
+    .collect()
 }

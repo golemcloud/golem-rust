@@ -65,6 +65,11 @@ mod golem_component {
         V6,
     }
 
+    enum IpAddr {
+        V4(String),
+        V6(String),
+    }
+
     pub struct X {
         SoMe_Array: Option<f64>,
         another: [String], // Vec -> list, Box<_>
@@ -88,10 +93,7 @@ mod golem_component {
 
 //#[golem_rust::create_wit_file("example.wit")]
 mod golem_component2 {
-    enum IpAddr {
-        V4(String),
-        V6(String),
-    }
+
     pub struct BidderId {
         pub bidder_id: String,
         pub verified: bool,

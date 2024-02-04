@@ -1,6 +1,6 @@
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::prelude::*;
 use syn::spanned::Spanned;
 use syn::*;
@@ -12,7 +12,7 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, file_name: String) -> syn::Resul
         .ident
         .to_string()
         .to_lowercase()
-        .replace("_", ":");
+        .replace('_', ":");
 
     let items = ast.clone().content.unwrap().1;
 
@@ -36,7 +36,7 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, file_name: String) -> syn::Resul
                             .unwrap()
                             .to_string()
                             .to_lowercase()
-                            .replace("_", "-");
+                            .replace('_', "-");
 
                         resolve_type(f.ty).map(|tpe| format!("{}: {}", field_name, tpe))
                     })
@@ -71,7 +71,7 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, file_name: String) -> syn::Resul
                                         .ident
                                         .to_string()
                                         .to_lowercase()
-                                        .replace("_", "-");
+                                        .replace('_', "-");
 
                                     let ret_tpe = extract_return_type(signature.output);
 
@@ -168,7 +168,7 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, file_name: String) -> syn::Resul
                 },
                 a => Err(syn::Error::new(
                     a.span(),
-                    format!("Unexpected item inside module. For WIT generation, only structs, enums, types and traits are supported. \nIf you think what you are trying is a valid use case, please open an issue https://github.com/golemcloud/golem-rust/issues"),
+                    "Unexpected item inside module. For WIT generation, only structs, enums, types and traits are supported. \nIf you think what you are trying is a valid use case, please open an issue https://github.com/golemcloud/golem-rust/issues",
                 )),
             }
         })
@@ -187,9 +187,8 @@ pub fn generate_witfile(ast: &mut syn::ItemMod, file_name: String) -> syn::Resul
 fn pascal_case_to_kebab_case(pascal_case: String) -> String {
     let mut record_title = pascal_case.chars();
 
-    let mut first_letter = record_title.nth(0).unwrap().to_lowercase().to_string();
+    let mut first_letter = record_title.next().unwrap().to_lowercase().to_string();
     let rest = record_title
-        .into_iter()
         .map(|ch| {
             if ch.is_uppercase() {
                 format!("-{}", ch.to_lowercase())
@@ -217,7 +216,7 @@ fn pat_type_to_param(pat_type: PatType) -> syn::Result<String> {
     let pat = pat_type.clone().pat;
 
     let param_name = match *pat {
-        Pat::Ident(i) => Ok(i.ident.to_string().to_lowercase().replace("_", "-")),
+        Pat::Ident(i) => Ok(i.ident.to_string().to_lowercase().replace('_', "-")),
         _ => Err(syn::Error::new(pat_type.span(), "Unexpected param name. If you think this should be supported, please open an issue https://github.com/golemcloud/golem-rust/issues")),
     };
 
@@ -236,10 +235,7 @@ fn resolve_enum_or_variant(item_enum: ItemEnum) -> String {
         .variants
         .into_iter()
         .map(|v| v.fields)
-        .any(|fields| match fields {
-            Fields::Unit => false,
-            _ => true,
-        });
+        .any(|fields| matches!(fields, Fields::Unit));
 
     if is_variant {
         "variant".to_owned()
@@ -292,7 +288,7 @@ fn check_unsupported_identifiers(name: String, span: Span) -> syn::Result<()> {
 fn resolve_type(ty: Type) -> syn::Result<String> {
     match ty.clone() {
         Type::Path(type_path) => {
-            if type_path.path.segments.first().unwrap().ident.to_string() == "super" {
+            if type_path.path.segments.first().unwrap().ident == "super" {
                 return Err(syn::Error::new(
                     ty.span(),
                     "Cannot reference types from outside of a module with 'super' keyword as macro cannot see their full implementation. \nWIT only knows about Result, Option, Vec, tuples, arrays and user defined data types that needs to reside inside the module.",
@@ -301,7 +297,7 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
 
             // we take last segment e.g. Result from std::result::Result
             let path_segment = type_path.path.segments.last().unwrap();
-            if path_segment.ident.to_string() == "Box" {
+            if path_segment.ident == "Box" {
                 match &path_segment.arguments {
                     PathArguments::AngleBracketed(args) => {
                         let gen_arg = args.args.first().unwrap();
@@ -312,10 +308,9 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
                     }
                     _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue and describe your use case. https://github.com/golemcloud/golem-rust/issues")),
                 }
-            } else if let (PathArguments::AngleBracketed(args), true) = (
-                &path_segment.arguments,
-                path_segment.ident.to_string() == "Vec",
-            ) {
+            } else if let (PathArguments::AngleBracketed(args), true) =
+                (&path_segment.arguments, path_segment.ident == "Vec")
+            {
                 // vector has only one type param
                 let gen_arg = args.args.first().unwrap();
                 match gen_arg {
@@ -326,10 +321,9 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
                     }
                     _ => Err(syn::Error::new(ty.span(), "Unexpected error. If you think this should work, please open an issue and describe your use case. https://github.com/golemcloud/golem-rust/issues")),
                 }
-            } else if let (PathArguments::AngleBracketed(args), true) = (
-                &path_segment.arguments,
-                path_segment.ident.to_string() == "Result",
-            ) {
+            } else if let (PathArguments::AngleBracketed(args), true) =
+                (&path_segment.arguments, path_segment.ident == "Result")
+            {
                 let result_arguments: syn::Result<Vec<_>> = args
                     .clone()
                     .args
@@ -341,10 +335,9 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
                     .collect();
 
                 result_arguments.map(|c| format!("result<{}>", c.join(", ")))
-            } else if let (PathArguments::AngleBracketed(args), true) = (
-                &path_segment.arguments,
-                path_segment.ident.to_string() == "Option",
-            ) {
+            } else if let (PathArguments::AngleBracketed(args), true) =
+                (&path_segment.arguments, path_segment.ident == "Option")
+            {
                 let gen_arg = args.args.first().unwrap();
                 match gen_arg {
                     GenericArgument::Type(tpe) => {
@@ -361,11 +354,7 @@ fn resolve_type(ty: Type) -> syn::Result<String> {
             }
         }
         Type::Tuple(tuple_type) => {
-            let ts: syn::Result<Vec<_>> = tuple_type
-                .elems
-                .into_iter()
-                .map(|tpe| resolve_type(tpe))
-                .collect();
+            let ts: syn::Result<Vec<_>> = tuple_type.elems.into_iter().map(resolve_type).collect();
 
             ts.map(|c| {
                 let t = c.join("\n");
