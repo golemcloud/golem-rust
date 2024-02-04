@@ -271,7 +271,6 @@ Other rules of wit file generation:
 - snake_case is replaced with kebab-case.
 - Trait name does not matter.
 - Functions inside trait are translated to WIT file functions.
-- Abstract type members inside traits are not supported.
 - It has to be inner module and all used types need to be defined inside module.
 - If there are multiple traits inside module, their content is concatenated into single wit interface.
 
@@ -281,4 +280,4 @@ Contributions very are welcome. If you find a bug, use case that is not supporte
 
 ## golem-rust-examples
 
-Inner binary project which depends on golem-rust. Here you can find mode examples on how to use golem-rust.
+Inner binary project which depends on golem-rust. Here you can find more examples on how to use golem-rust.
