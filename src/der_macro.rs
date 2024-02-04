@@ -46,7 +46,6 @@ pub fn expand_wit(ast: &mut syn::DeriveInput) -> syn::Result<TokenStream> {
                             }
                         }
                     }
-                    
                     impl Into<#derived_name> for #name {
                         fn into(self) -> #derived_name {
                             #derived_name {
@@ -64,7 +63,6 @@ pub fn expand_wit(ast: &mut syn::DeriveInput) -> syn::Result<TokenStream> {
 
         // Enum derivation
         Data::Enum(data_enum) => {
-            
             let from_fields: syn::Result<Vec<_>> = data_enum.variants.clone().into_iter().map(|variant| {
                 let variant_name = variant.ident.clone();
                 let new_name = extract_field_name(variant.attrs.clone(), variant_name.clone());
@@ -73,9 +71,7 @@ pub fn expand_wit(ast: &mut syn::DeriveInput) -> syn::Result<TokenStream> {
             }).collect();
 
             let from = from_fields?.into_iter().map(|(new_name, variant)|{
-
                 let variant_name = variant.ident.clone();
-                
                 match variant.fields {
                     Fields::Unit => {
                         quote!(
@@ -116,10 +112,8 @@ pub fn expand_wit(ast: &mut syn::DeriveInput) -> syn::Result<TokenStream> {
                 let variant_name = variant.ident.clone();
                 let new_name =
                     extract_field_name(variant.attrs.clone(), variant_name.clone());
-                
                 new_name.map(|n| (n, variant))
             }).collect();
-
             let into = into_fields?.into_iter().map(|(new_name, variant)|{
 
                 let variant_name = variant.ident.clone();
