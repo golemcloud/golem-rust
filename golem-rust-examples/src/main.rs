@@ -3,11 +3,9 @@ mod generated;
 use generated::*;
 
 fn main() {
-    // struct without fields
     let empty = Empty {};
 
     let wit_empty: WitEmpty = empty.into();
-    // struct
     let me = Person {
         name: "Jaro".to_owned(),
         age: 32,
@@ -15,21 +13,14 @@ fn main() {
 
     let converted: WitPerson = me.into();
 
-    println!("Struct converted {} {}", converted.name2, converted.age);
-
-    // simple enum
     let yellow = Colors::Yellow;
-
     let wit_collors: WitColors = yellow.into();
 
-    println!("Enum converted {} ", wit_collors);
 
-    // named enum
     let bid = BidResult::Someone {
         name: "Ema".to_string(),
         age: 10,
     };
-
     let bid_converted: WitBidResult = bid.into();
 }
 
@@ -38,9 +29,9 @@ fn main() {
 struct Empty {}
 
 #[derive(golem_rust::WIT_From_Into)]
-#[wit_file_name(WitPerson)] // optional as "Wit + classname" is the default
+#[wit_file_name(WitPerson)]
 pub struct Person {
-    #[rustfmt::skip] // to check if other attributes don't interfere
+    
     #[rename_field("name2")]
     pub name: String,
 
@@ -53,12 +44,10 @@ pub enum Colors {
     White,
 
     #[rename_field("Yellow2")]
-    // #[rename("Yellow2")]
     Yellow,
 }
 
 #[derive(golem_rust::WIT_From_Into)]
-#[rename_field("dead_code")] // nonsense just to check if such attributes don't interfere
 pub enum BidResult {
     #[rename_field("Success2")]
     Success,

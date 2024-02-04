@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "golem-rust-example"
+name = "golem-rust-examples"
 version = "0.1.0"
 dependencies = [
  "golem-rust",

@@ -11,7 +11,7 @@ use syn::*;
 ///     name: "John Doe".to_owned(),
 ///     age: 42,
 ///  };
-/// 
+///
 ///  let converted: WitPerson = person.into();
 /// ```
 ///
