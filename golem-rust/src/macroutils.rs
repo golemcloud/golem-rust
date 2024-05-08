@@ -14,10 +14,9 @@ pub enum WitMeta {
     Result(ResultMeta), // Tuple(Vec<WitMeta>)
     Option(WitRef),
     List(WitRef),
-
-    // type buffer = list<u8>;
     Alias(WitRef),
     Primitive(PrimitiveMeta),
+    Function(FunctionMeta),
 }
 
 #[derive(Debug)]
@@ -44,6 +43,13 @@ pub enum PrimitiveMeta {
 pub struct Ident(pub &'static str);
 
 #[derive(Debug)]
+pub struct FunctionMeta {
+    pub name: Ident,
+    pub args: &'static [(&'static str, WitRef)],
+    pub result: WitRef,
+}
+
+#[derive(Debug)]
 pub struct StructMeta {
     pub name: Ident,
     pub fields: &'static [(&'static str, WitRef)],
@@ -65,4 +71,12 @@ pub struct FlagMeta {
 pub struct ResultMeta {
     pub ok: WitRef,
     pub err: WitRef,
+}
+
+#[macro_export]
+macro_rules! golem_gen {
+    () => {
+        #[distributed_slice]
+        pub static ALL_WIT_TYPES_FOR_GOLEM: [fn() -> &'static WitMeta];
+    };
 }

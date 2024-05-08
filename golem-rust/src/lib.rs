@@ -29,11 +29,9 @@ pub use bindings::golem::api::host::oplog_commit;
 pub use bindings::golem::api::host::PersistenceLevel;
 pub use bindings::golem::api::host::RetryPolicy;
 
-pub use transaction::*;
 pub use golem_rust_macro::golem;
 pub use macroutils::*;
-// TODO remove
-pub use linkme::*;
+pub use transaction::*;
 
 pub struct PersistenceLevelGuard {
     original_level: PersistenceLevel,

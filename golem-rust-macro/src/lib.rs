@@ -73,20 +73,15 @@ pub fn golem_operation(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn golem(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let trait_tokens = parse::<ItemTrait>(item.clone()).and_then(|mut t| {
-        
-        golem::implement_trait(&mut t)
-    });
 
     let struct_tokens = parse::<ItemStruct>(item.clone()).and_then(|mut t| {
         
         golem::implement_struct(&mut t)
     });
 
-    let global_function = parse::<ItemFn>(item.clone()).and_then(|mut d| {
-        eprintln!("GLOBAL FUNCTIONS \n{:#?}", d.clone());
+    let global_function = parse::<ItemFn>(item.clone()).and_then(|mut t| {
 
-        Ok(d.to_token_stream())
+        golem::implement_global_function(&mut t)
     });
 
     let type_tokens = parse::<ItemType>(item.clone()).and_then(|mut t| {
@@ -106,16 +101,15 @@ pub fn golem(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         Ok(t.to_token_stream())
     });
-
-    trait_tokens
-        .or_else(|_| global_function)
+    
+    global_function
         .or_else(|_| type_tokens)
         .or_else(|_| struct_tokens)
         .or_else(|_| enum_tokens)
         .or_else(|_| struct_impl)
         .or_else(|_| Err(Error::new(
             proc_macro2::Span::call_site(),
-            "Use golem annotation only to annotate: top level functions, structs, enums, type aliases and traits."
+            "Use golem annotation only to annotate: top level functions, structs, enums and type aliases."
         )))
         .unwrap_or_else(syn::Error::into_compile_error).into()
 }
