@@ -1,44 +1,52 @@
-
 //use linkme::distributed_slice;
-
-pub trait IntoWitMetadata {
-    fn ident() -> &'static str;
-    fn as_wit() -> WitMeta;
-}
 
 /**
  * AST TYPES
  */
+
+pub type WitRef = &'static WitMeta;
+
 #[derive(Debug)]
 pub enum WitMeta {
     Struct(StructMeta),
     Enum(EnumMeta),
     FlagMeta(FlagMeta),
     Result(ResultMeta), // Tuple(Vec<WitMeta>)
+    Option(WitRef),
+    List(WitRef),
 
-    Option(Ident),
-    //
-    List(Ident),
     // type buffer = list<u8>;
-    Alias(Ident),
+    Alias(WitRef),
+    Primitive(PrimitiveMeta),
+}
+
+#[derive(Debug)]
+pub enum PrimitiveMeta {
+    S8,
+    S16,
+    S32,
+    S64,
+
+    U8,
+    U16,
+    U32,
+    U64,
+
+    F32,
+    F64,
+
+    Bool,
+    Char,
     String,
-    Trait(TraitMeta)
 }
 
 #[derive(Debug)]
-pub struct Ident(pub String);
-
-#[derive(Debug)]
-pub struct TraitMeta {
-    pub name: String,
-    pub args: Vec<(String, Box<WitMeta>)>,
-    pub result: Box<WitMeta>
-}
+pub struct Ident(pub &'static str);
 
 #[derive(Debug)]
 pub struct StructMeta {
     pub name: Ident,
-    pub fields: Vec<(String, Box<WitMeta>)>,
+    pub fields: &'static [(&'static str, WitRef)],
 }
 
 #[derive(Debug)]
@@ -55,6 +63,6 @@ pub struct FlagMeta {
 
 #[derive(Debug)]
 pub struct ResultMeta {
-    pub ok: Ident,
-    pub err: Ident,
+    pub ok: WitRef,
+    pub err: WitRef,
 }

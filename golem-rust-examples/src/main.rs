@@ -38,72 +38,95 @@ struct Address {
 }
 
 //#[golem()]
-pub trait UserService {
-    fn get_person() -> Person;
-}
-
-impl IntoWitMetadata for Address {
-    fn ident() -> &'static str {
-        "Address"
-    }
-
-    fn as_wit() -> WitMeta {
-        WitMeta::Struct(StructMeta {
-            name: Ident("Address".to_owned()),
-            fields: vec![
-                ("street".to_owned(), Box::new(WitMeta::String)),
-                ("city".to_owned(), Box::new(WitMeta::String)),
-                ("state".to_owned(), Box::new(WitMeta::String)),
-                ("zip".to_owned(), Box::new(WitMeta::String)),
-            ],
-        })
-    }
-}
-
-impl IntoWitMetadata for Person {
-    fn ident() -> &'static str {
-        "Person"
-    }
-
-    fn as_wit() -> WitMeta {
-        WitMeta::Struct(StructMeta {
-            name: Ident("Person".to_owned()),
-            fields: vec![
-                ("name".to_owned(), Box::new(WitMeta::String)),
-                ("address".to_owned(), Box::new(Address::as_wit())),
-            ],
-        })
-    }
-}
-
-use linkme::distributed_slice;
+// pub trait UserService {
+//     fn get_person() -> Person;
+// }
 
 #[distributed_slice]
-pub static ALL_WIT_TYPES_2: [fn() -> WitMeta];
+pub static ALL_WIT_TYPES: [fn() -> &'static WitMeta];
 
-#[distributed_slice(ALL_WIT_TYPES_2)]
-static ADDRESS_WIT: fn() -> WitMeta = || Address::as_wit();
+trait HasWitMetadata {
+    const IDENT: &'static str;
+    const WIT: &'static WitMeta;
+}
 
-#[distributed_slice(ALL_WIT_TYPES_2)]
-static PERSON_WIT: fn() -> WitMeta = || Person::as_wit();
+mod primitives {
+    macro_rules! impl_has_wit_metadata {
+    ($($type:ty => $ident:expr => $primitive_meta:expr),+) => {
+        $(
+            impl HasWitMetadata for $type {
+                const IDENT: &'static str = $ident;
+                const WIT: &'static WitMeta = &WitMeta::Primitive($primitive_meta);
+            }
+        )+
+    };
+}
+    use crate::HasWitMetadata;
+    use golem_rust::{PrimitiveMeta, WitMeta};
+
+    impl_has_wit_metadata! {
+        i8 => "i8" => PrimitiveMeta::S8,
+        i16 => "i16" => PrimitiveMeta::S16,
+        i32 => "i32" => PrimitiveMeta::S32,
+        i64 => "i64" => PrimitiveMeta::S64,
+
+        u8 => "u8" => PrimitiveMeta::U8,
+        u32 => "u32" => PrimitiveMeta::U32,
+        u64 => "u64" => PrimitiveMeta::U64,
+
+        f32 => "f32" => PrimitiveMeta::F32,
+        f64 => "f64" => PrimitiveMeta::F64,
+
+        bool => "bool" => PrimitiveMeta::Bool,
+        char => "char" => PrimitiveMeta::Char,
+        // TODO: Support all String types.
+        String => "String" => PrimitiveMeta::String
+    }
+}
+
+#[distributed_slice(ALL_WIT_TYPES)]
+static ADDRESS_WIT: fn() -> &'static WitMeta = || Address::WIT;
+
+impl HasWitMetadata for Address {
+    const IDENT: &'static str = "Address";
+
+    const WIT: &'static WitMeta = &WitMeta::Struct(StructMeta {
+        name: Ident("Address"),
+        fields: &[
+            ("street", String::WIT),
+            ("city", String::WIT),
+            ("state", String::WIT),
+            ("zip", String::WIT),
+        ],
+    });
+}
+
+#[distributed_slice(ALL_WIT_TYPES)]
+static PERSON_WIT: fn() -> &'static WitMeta = || Person::WIT;
+
+impl HasWitMetadata for Person {
+    const IDENT: &'static str = "Person";
+
+    const WIT: &'static WitMeta = &WitMeta::Struct(StructMeta {
+        name: Ident("Person"),
+        fields: &[("name", String::WIT), ("address", Address::WIT)],
+    });
+}
 
 #[test]
 fn test_iter() {
-    ALL_WIT_TYPES_2.iter().for_each(|f| {
+    ALL_WIT_TYPES.iter().for_each(|f| {
         let wit = f();
         println!("{wit:?}");
     });
 }
-
-
 
 //[House, HouseService]
 
 fn test() {
 
     //House::to_wit();
- }
-
+}
 
 // #[derive(golem_rust::WIT_From_Into)]
 // #[wit_type_name(WitEmpty)]
