@@ -30,6 +30,7 @@ name = "golem-rust"
 version = "0.0.0"
 dependencies = [
  "golem-rust-macro",
+ "linkme",
  "uuid",
  "wit-bindgen",
 ]
@@ -39,6 +40,7 @@ name = "golem-rust-examples"
 version = "0.1.0"
 dependencies = [
  "golem-rust",
+ "linkme",
 ]
 
 [[package]]
@@ -62,6 +64,26 @@ name = "libc"
 version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
+
+[[package]]
+name = "linkme"
+version = "0.3.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "833222afbfe72868ac8f9770c91a33673f0d5fefc37c9dbe94aa3548b571623f"
+dependencies = [
+ "linkme-impl",
+]
+
+[[package]]
+name = "linkme-impl"
+version = "0.3.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39f0dea92dbea3271557cc2e1848723967bba81f722f95026860974ec9283f08"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "proc-macro2"

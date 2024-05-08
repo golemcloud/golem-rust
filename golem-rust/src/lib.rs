@@ -19,6 +19,8 @@ pub mod bindings;
 #[cfg(feature = "uuid")]
 mod uuid;
 
+mod macroutils;
+
 mod transaction;
 
 use bindings::golem::api::host::*;
@@ -28,7 +30,10 @@ pub use bindings::golem::api::host::PersistenceLevel;
 pub use bindings::golem::api::host::RetryPolicy;
 
 pub use transaction::*;
-pub use golem_rust_macro::*;
+pub use golem_rust_macro::golem;
+pub use macroutils::*;
+// TODO remove
+pub use linkme::*;
 
 pub struct PersistenceLevelGuard {
     original_level: PersistenceLevel,
@@ -141,19 +146,4 @@ pub fn mark_atomic_operation() -> AtomicOperationGuard {
 pub fn atomically<T>(f: impl FnOnce() -> T) -> T {
     let _guard = mark_atomic_operation();
     f()
-}
-
-pub trait Wittable {
-    fn to_wit() -> WitContent;
-}
-
-pub enum WitContent {
-    Str(String), // Struct
-    Str2,
-
-    Enm(String), // Enum
-
-    Vrnt(String), // Variant
-
-    Fnc(String), // Function
 }

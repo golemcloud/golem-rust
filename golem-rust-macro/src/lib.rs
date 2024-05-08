@@ -75,8 +75,12 @@ pub fn golem_operation(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn golem(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let trait_tokens = parse::<ItemTrait>(item.clone()).and_then(|mut t| {
         
-        //golem::generate_wit()
-        Ok(t.to_token_stream())
+        golem::implement_trait(&mut t)
+    });
+
+    let struct_tokens = parse::<ItemStruct>(item.clone()).and_then(|mut t| {
+        
+        golem::implement_struct(&mut t)
     });
 
     let global_function = parse::<ItemFn>(item.clone()).and_then(|mut d| {
@@ -89,11 +93,6 @@ pub fn golem(_attr: TokenStream, item: TokenStream) -> TokenStream {
         eprintln!("ÌTEM TYPE \n{:#?}", t.clone());
 
         Ok(t.to_token_stream())
-    });
-
-    let struct_tokens = parse::<ItemStruct>(item.clone()).and_then(|mut t| {
-
-        golem::implement_struct(&mut t)
     });
 
     let enum_tokens = parse::<ItemEnum>(item.clone()).and_then(|mut t| {

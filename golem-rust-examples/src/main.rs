@@ -1,15 +1,13 @@
 mod generated;
 
-use generated::*;
-
 fn main() {
     // let empty = Empty {};
 
     // let wit_empty: WitEmpty = empty.into();
-    let me = Person {
-        name: "Jaro".to_owned(),
-        age: 32,
-    };
+    // let me = Person {
+    //     name: "Jaro".to_owned(),
+    //     age: 32,
+    // };
 
     //let converted: WitPerson = me.into();
 
@@ -26,20 +24,84 @@ fn main() {
 use golem_rust::*;
 
 #[golem()]
-pub struct House {
-    address: String,
+struct Person {
+    name: String,
+    address: Address,
 }
 
 #[golem()]
-pub trait HouseService {
+struct Address {
+    street: String,
+    city: String,
+    state: String,
+    zip: String,
+}
 
-    fn get_house() -> House;
+//#[golem()]
+pub trait UserService {
+    fn get_person() -> Person;
+}
+
+impl IntoWitMetadata for Address {
+    fn ident() -> &'static str {
+        "Address"
+    }
+
+    fn as_wit() -> WitMeta {
+        WitMeta::Struct(StructMeta {
+            name: Ident("Address".to_owned()),
+            fields: vec![
+                ("street".to_owned(), Box::new(WitMeta::String)),
+                ("city".to_owned(), Box::new(WitMeta::String)),
+                ("state".to_owned(), Box::new(WitMeta::String)),
+                ("zip".to_owned(), Box::new(WitMeta::String)),
+            ],
+        })
+    }
+}
+
+impl IntoWitMetadata for Person {
+    fn ident() -> &'static str {
+        "Person"
+    }
+
+    fn as_wit() -> WitMeta {
+        WitMeta::Struct(StructMeta {
+            name: Ident("Person".to_owned()),
+            fields: vec![
+                ("name".to_owned(), Box::new(WitMeta::String)),
+                ("address".to_owned(), Box::new(Address::as_wit())),
+            ],
+        })
+    }
+}
+
+use linkme::distributed_slice;
+
+#[distributed_slice]
+pub static ALL_WIT_TYPES_2: [fn() -> WitMeta];
+
+#[distributed_slice(ALL_WIT_TYPES_2)]
+static ADDRESS_WIT: fn() -> WitMeta = || Address::as_wit();
+
+#[distributed_slice(ALL_WIT_TYPES_2)]
+static PERSON_WIT: fn() -> WitMeta = || Person::as_wit();
+
+#[test]
+fn test_iter() {
+    ALL_WIT_TYPES_2.iter().for_each(|f| {
+        let wit = f();
+        println!("{wit:?}");
+    });
 }
 
 
+
+//[House, HouseService]
+
 fn test() {
 
-    House::to_wit();
+    //House::to_wit();
  }
 
 
@@ -51,16 +113,16 @@ struct Empty {}
 // golem_rust::from (do from both ways)
 //#[derive(WIT_From_Into)]
 // #[golem(wit = WitPerson)]
-//#[wit_type_name(WitPerson)]
-pub struct Person {
-    // #rename
+// //#[wit_type_name(WitPerson)]
+// pub struct Person {
+//     // #rename
 
-    // darling
-    //#[rename_field("name2")]
-    pub name: String,
+//     // darling
+//     //#[rename_field("name2")]
+//     pub name: String,
 
-    pub age: i32,
-}
+//     pub age: i32,
+// }
 
 //#[derive(golem_rust::WIT_From_Into)]
 pub enum Colors {
