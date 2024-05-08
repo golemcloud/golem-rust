@@ -14,13 +14,14 @@
 
 use proc_macro::TokenStream;
 
+use quote::ToTokens;
 use syn::*;
 
 use crate::transaction::golem_operation_impl;
 
 mod expand;
 mod transaction;
-mod wit_gen;
+mod golem;
 
 /// Derives `From<>` And `Into<>` typeclasses for wit-bindgen generated data types (e.g. `WitPerson`)
 /// and custom domain data types (e.g. `Person`). So it's possible to write code like this:
@@ -64,138 +65,58 @@ pub fn derive(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Annotates a module with `#[golem_rust_macro::create_wit_file]` and generates WIT file in the root of your project.
-/// Supports enums, structs, traits and alias types.
-///
-/// # Example:
-/// ```
-///  #[golem_rust_macro::create_wit_file("auction_app.wit")]
-///  mod auction_app {
-///  
-///      struct BidderId {
-///          bidder_id: String,
-///      }
-///  
-///      struct AuctionId {
-///          auction_id: String,
-///      }
-///  
-///      struct Auction {
-///          auction_id: Option<AuctionId>,
-///          name: String,
-///          description: String,
-///          starting_price: f32,
-///          deadline: Deadline,
-///      }
-///  
-///      enum BidResult {
-///          Failure(String),
-///          Success,
-///      }
-///  
-///      type Deadline = u64;
-///  
-///      trait AuctionService {
-///          fn initialize(auction: Auction);
-///  
-///          fn bid(bidder_id: BidderId, price: f32) -> BidResult;
-///  
-///          fn close_auction() -> Option<BidderId>;
-///  
-///          fn create_bidder(name: String, address: String) -> BidderId;
-///  
-///          fn create_auction(
-///              name: String,
-///              description: String,
-///              starting_price: f32,
-///              deadline: u64,
-///          ) -> AuctionId;
-///  
-///          fn get_auctions() -> Vec<Auction>;
-///      }
-///  }
-/// ```
-///
-/// File `auction_app.wit` is then created with the following content.
-///
-/// ```ignore
-/// package auction:app
-///
-/// interface api {
-///     
-///     record bidder-id {
-///         bidder-id: string,
-///     }
-///
-///     record auction-id {
-///         auction-id: string,
-///     }
-///
-///     record auction {
-///         auction-id: option<auction-id>,
-///         name: string,
-///         description: string,
-///         starting-price: float32,
-///         deadline: deadline,
-///     }
-///
-///     variant bid-result {
-///         failure(string),
-///         success
-///     }
-///                 
-///     type deadline = u64
-///
-///     initialize: func(auction: auction)
-///
-///     bid: func(bidder-id: bidder-id, price: float32) -> bid-result
-///
-///     close-auction: func() -> option<bidder-id>
-///
-///     create-bidder: func(name: string, address: string) -> bidder-id
-///
-///     create-auction: func(name: string, description: string, starting-price: float32, deadline: u64) -> auction-id
-///
-///     get-auctions: func() -> list<auction>
-/// }
-///
-/// world golem-service {
-///     export api
-/// }
-///  ```
-#[proc_macro_attribute]
-pub fn create_wit_file(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let item_moved = item.clone();
-
-    let mut input = parse_macro_input!(item_moved as ItemMod);
-
-    let file_name_result = syn::parse2::<syn::Lit>(_attr.into())
-        .map_or_else(|_| {
-            Ok("generated.wit".to_owned())
-        },
-        |literal| {
-            match literal {
-                syn::Lit::Str(lit) => {
-                    let mut n = lit.value();
-                    if n.ends_with(".wit") {
-                        Ok(n)
-                    } else {
-                        n.push_str(".wit");
-                        Ok(n)
-                    }
-                },
-                _ =>  Err(syn::Error::new(literal.span(), "If you want to specify name of the generated file, please input is as a String, otherwise do not input any attributes. \n Generated file will be 'generated.wit'")),
-            }
-        });
-
-    file_name_result
-        .and_then(|file_name| wit_gen::generate_witfile(&mut input, file_name).to_owned())
-        .unwrap_or_else(syn::Error::into_compile_error)
-        .into()
-}
-
 /// Defines a function as an `Operation` that can be used in transactions
 #[proc_macro_attribute]
 pub fn golem_operation(attr: TokenStream, item: TokenStream) -> TokenStream {
     golem_operation_impl(attr, item)
+}
+
+#[proc_macro_attribute]
+pub fn golem(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let trait_tokens = parse::<ItemTrait>(item.clone()).and_then(|mut t| {
+        
+        //golem::generate_wit()
+        Ok(t.to_token_stream())
+    });
+
+    let global_function = parse::<ItemFn>(item.clone()).and_then(|mut d| {
+        eprintln!("GLOBAL FUNCTIONS \n{:#?}", d.clone());
+
+        Ok(d.to_token_stream())
+    });
+
+    let type_tokens = parse::<ItemType>(item.clone()).and_then(|mut t| {
+        eprintln!("ÌTEM TYPE \n{:#?}", t.clone());
+
+        Ok(t.to_token_stream())
+    });
+
+    let struct_tokens = parse::<ItemStruct>(item.clone()).and_then(|mut t| {
+
+        golem::implement_struct(&mut t)
+    });
+
+    let enum_tokens = parse::<ItemEnum>(item.clone()).and_then(|mut t| {
+        eprintln!("ENUM TYPE \n{:#?}", t.clone());
+
+        Ok(t.to_token_stream())
+    });
+
+    let struct_impl = parse::<ItemImpl>(item.clone()).and_then(|mut t| {
+        eprintln!("STRUCT IMPL TYPE \n{:#?}", t.clone());
+
+        Ok(t.to_token_stream())
+    });
+
+    trait_tokens
+        .or_else(|_| global_function)
+        .or_else(|_| type_tokens)
+        .or_else(|_| struct_tokens)
+        .or_else(|_| enum_tokens)
+        .or_else(|_| struct_impl)
+        .or_else(|_| Err(Error::new(
+            proc_macro2::Span::call_site(),
+            "Use golem annotation only to annotate: top level functions, structs, enums, type aliases and traits."
+        )))
+        .unwrap_or_else(syn::Error::into_compile_error).into()
 }

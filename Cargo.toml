@@ -3,7 +3,8 @@ resolver = "2"
 
 members = [
     "golem-rust-macro",
-    "golem-rust",
+    "golem-rust", 
+    "golem-rust-examples"
 ]
 
 [profile.release]

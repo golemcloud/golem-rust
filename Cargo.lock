@@ -35,6 +35,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "golem-rust-examples"
+version = "0.1.0"
+dependencies = [
+ "golem-rust",
+]
+
+[[package]]
 name = "golem-rust-macro"
 version = "0.0.0"
 dependencies = [

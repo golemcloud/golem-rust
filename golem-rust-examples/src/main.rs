@@ -3,57 +3,83 @@ mod generated;
 use generated::*;
 
 fn main() {
-    let empty = Empty {};
+    // let empty = Empty {};
 
-    let wit_empty: WitEmpty = empty.into();
+    // let wit_empty: WitEmpty = empty.into();
     let me = Person {
         name: "Jaro".to_owned(),
         age: 32,
     };
 
-    let converted: WitPerson = me.into();
+    //let converted: WitPerson = me.into();
 
-    let yellow = Colors::Yellow;
-    let wit_collors: WitColors = yellow.into();
+    // let yellow = Colors::Yellow;
+    // let wit_collors: WitColors = yellow.into();
 
-    let bid = BidResult::Someone {
-        name: "Ema".to_string(),
-        age: 10,
-    };
-    let bid_converted: WitBidResult = bid.into();
+    // let bid = BidResult::Someone {
+    //     name: "Ema".to_string(),
+    //     age: 10,
+    // };
+    // let bid_converted: WitBidResult = bid.into();
 }
 
-#[derive(golem_rust::WIT_From_Into)]
-#[wit_type_name(WitEmpty)]
+use golem_rust::*;
+
+#[golem()]
+pub struct House {
+    address: String,
+}
+
+#[golem()]
+pub trait HouseService {
+
+    fn get_house() -> House;
+}
+
+
+fn test() {
+
+    House::to_wit();
+ }
+
+
+// #[derive(golem_rust::WIT_From_Into)]
+// #[wit_type_name(WitEmpty)]
 struct Empty {}
 
-#[derive(golem_rust::WIT_From_Into)]
-#[wit_type_name(WitPerson)]
+// TODO
+// golem_rust::from (do from both ways)
+//#[derive(WIT_From_Into)]
+// #[golem(wit = WitPerson)]
+//#[wit_type_name(WitPerson)]
 pub struct Person {
-    #[rename_field("name2")]
+    // #rename
+
+    // darling
+    //#[rename_field("name2")]
     pub name: String,
 
     pub age: i32,
 }
 
-#[derive(golem_rust::WIT_From_Into)]
+//#[derive(golem_rust::WIT_From_Into)]
 pub enum Colors {
     Red,
     White,
 
-    #[rename_field("Yellow2")]
+    //#[rename_field("Yellow2")]
     Yellow,
 }
 
-#[derive(golem_rust::WIT_From_Into)]
+//#[derive(golem_rust::WIT_From_Into)]
 pub enum BidResult {
-    #[rename_field("Success2")]
+    //#[rename_field("Success2")]
     Success,
 
-    #[rename_field("Failure2")]
+    //#[rename_field("Failure2")]
     Failure(String, u32),
 
-    #[rename_field("Someone2")]
+    //#[rename_field("Someone2")]
     Someone { name: String, age: u32 },
 }
 
