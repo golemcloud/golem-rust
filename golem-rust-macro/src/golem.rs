@@ -1,6 +1,6 @@
+use darling::{ast, util::IdentString, FromDeriveInput};
 use heck::ToPascalCase;
 use proc_macro2::TokenStream;
-use darling::{ast, util::IdentString, FromDeriveInput};
 use quote::quote;
 use syn::spanned::Spanned;
 
@@ -31,9 +31,7 @@ pub mod structure {
                     .as_ref()
                     .expect("Field to have name")
                     .to_string();
-                let field_type = &field.ty;
-
-                let type_wit_const = make_type_wit_const(field_type, true);
+                let type_wit_const = make_type_wit_const(&field.ty, true);
 
                 type_wit_const.map(|ty| (field_name, ty))
             })
@@ -74,7 +72,6 @@ pub mod structure {
     pub struct StructContainer {
         pub ident: syn::Ident,
         pub data: ast::Data<(), StructField>,
-        // pub ty: syn::Type,
     }
 
     #[derive(Debug, FromField)]
@@ -159,9 +156,11 @@ fn make_distributed_slice(ident: &IdentString) -> proc_macro2::TokenStream {
     }
 }
 
+// Result<A, B> -> Result::<A, B>::WIT
+// Option<T> -> Option::<T>::WIT
+// Vec<T> -> Vec::<T>::WIT
+// Result<Option<T>, E> -> Result::<Option::<T>, E>::WIT
 fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> syn::Result<proc_macro2::TokenStream> {
-    let span = ty.span();
-
     match ty {
         syn::Type::Path(syn::TypePath { path, qself: None }) => {
             let ty = &path.segments.last().unwrap().ident;
@@ -211,14 +210,16 @@ fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> syn::Result<proc_macro2
 }
 
 pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
-
-   // let ast = syn::parse::<syn::ItemFn>(token_stream)?;
+    // let ast = syn::parse::<syn::ItemFn>(token_stream)?;
 
     //get_address
     let function_name = ast.sig.ident.clone();
 
     //GetAddress
-    let struct_name = syn::Ident::new(&(function_name.clone().to_string().to_pascal_case()), function_name.span());
+    let struct_name = syn::Ident::new(
+        &(function_name.clone().to_string().to_pascal_case()),
+        function_name.span(),
+    );
 
     let new_struct = quote! {
         struct #struct_name {}
@@ -228,7 +229,7 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
     uppercase_name.push_str(&(struct_name.to_string().to_uppercase()));
 
     //FUN_GET_ADDRESS
-    let uppercase_name_ident =  syn::Ident::new(&uppercase_name, struct_name.span());
+    let uppercase_name_ident = syn::Ident::new(&uppercase_name, struct_name.span());
 
     let distributed_slice = quote! {
         #[distributed_slice(ALL_WIT_TYPES_FOR_GOLEM)]
@@ -260,7 +261,5 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
 
 #[test]
 fn test_convert() {
-
-
     println!("RESULT ");
 }

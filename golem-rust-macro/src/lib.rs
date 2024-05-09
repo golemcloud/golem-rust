@@ -78,15 +78,12 @@ pub fn golem(_attr: TokenStream, root_item: TokenStream) -> TokenStream {
     (if let Ok(derive_input) = syn::parse::<syn::DeriveInput>(root_item.clone()) {
         golem::structure::expand(&item_tokens, &derive_input)
             .or_else(|_| golem::enumeration::expand(&item_tokens, &derive_input))
-
     } else {
         syn::parse::<syn::ItemFn>(root_item.clone())
             .and_then(|ast| golem::implement_global_function(ast))
-        
     })
-        .unwrap_or_else(syn::Error::into_compile_error)
-        .into()
-
+    .unwrap_or_else(syn::Error::into_compile_error)
+    .into()
 
     // let type_tokens = parse::<ItemType>(item.clone()).and_then(|mut t| {
 
@@ -102,5 +99,4 @@ pub fn golem(_attr: TokenStream, root_item: TokenStream) -> TokenStream {
 
     //     Ok(t.to_token_stream())
     // });
-
 }

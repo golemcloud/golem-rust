@@ -139,4 +139,13 @@ mod primitives {
 
         const WIT: &'static WitMeta = &WitMeta::Option(T::WIT);
     }
+
+    impl<T> HasWitMetadata for Vec<T>
+    where
+        T: HasWitMetadata,
+    {
+        const IDENT: &'static str = "List";
+
+        const WIT: &'static WitMeta = &WitMeta::List(T::WIT);
+    }
 }
