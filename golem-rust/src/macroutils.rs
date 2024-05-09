@@ -86,6 +86,8 @@ macro_rules! golem_gen {
 }
 
 mod primitives {
+    use crate::generate_for_tuples;
+
     use super::*;
 
     macro_rules! impl_has_wit_metadata {
@@ -148,4 +150,18 @@ mod primitives {
 
         const WIT: &'static WitMeta = &WitMeta::List(T::WIT);
     }
+
+    macro_rules! impl_has_wit_metadata_for_tuple {
+        ($($ty:ident),*) => {
+            impl<$($ty),*> HasWitMetadata for ($($ty,)*)
+            where
+                $($ty: HasWitMetadata),*
+            {
+                const IDENT: &'static str = "Tuple";
+                const WIT: &'static WitMeta = &WitMeta::Tuple(&[$($ty::WIT),*]);
+            }
+        };
+    }
+
+    generate_for_tuples!(impl_has_wit_metadata_for_tuple);
 }

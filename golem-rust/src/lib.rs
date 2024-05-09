@@ -22,6 +22,7 @@ mod uuid;
 mod macroutils;
 
 mod transaction;
+mod tuple;
 
 use bindings::golem::api::host::*;
 
