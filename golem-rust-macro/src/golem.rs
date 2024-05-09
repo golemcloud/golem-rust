@@ -1,6 +1,7 @@
 use darling::{ast, util::IdentString, FromDeriveInput};
 use proc_macro::TokenStream;
 use quote::quote;
+use syn::spanned::Spanned;
 
 pub mod structure {
     use darling::FromField;
@@ -21,17 +22,27 @@ pub mod structure {
             .take_struct()
             .expect("Struct to have fields");
 
-        let fields = fields.iter().map(|field| {
-            let field_name = field
-                .ident
-                .as_ref()
-                .expect("Field to have name")
-                .to_string();
-            let field_type = &field.ty;
+        let fields = fields
+            .iter()
+            .map(|field| {
+                let field_name = field
+                    .ident
+                    .as_ref()
+                    .expect("Field to have name")
+                    .to_string();
+                let field_type = &field.ty;
 
-            let type_wit_const = make_type_wit_const(field_type, true);
+                let type_wit_const = make_type_wit_const(field_type, true);
 
-            quote!((#field_name, #type_wit_const))
+                type_wit_const.map(|ty| (field_name, ty))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // convert the fields to quote.
+        let fields = fields.iter().map(|(name, ty)| {
+            quote! {
+                (#name, #ty)
+            }
         });
 
         let has_wit_metadata = quote! {
@@ -147,8 +158,9 @@ fn make_distributed_slice(ident: &IdentString) -> proc_macro2::TokenStream {
     }
 }
 
-// TODO: Fix panics?
-fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> proc_macro2::TokenStream {
+fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> syn::Result<proc_macro2::TokenStream> {
+    let span = ty.span();
+
     match ty {
         syn::Type::Path(syn::TypePath { path, qself: None }) => {
             let ty = &path.segments.last().unwrap().ident;
@@ -159,35 +171,41 @@ fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> proc_macro2::TokenStrea
 
             if generic_args.is_empty() {
                 if is_root {
-                    quote! {
+                    Ok(quote! {
                         #ty::WIT
-                    }
+                    })
                 } else {
-                    quote! {
+                    Ok(quote! {
                         #ty
-                    }
+                    })
                 }
             } else {
                 let generic_types = generic_args
                     .iter()
                     .map(|arg| match arg {
                         syn::GenericArgument::Type(ty) => make_type_wit_const(ty, false),
-                        _ => panic!("Unsupported generic argument type"),
+                        s => Err(syn::Error::new(
+                            s.span(),
+                            format!("Unsupported generic argument: {:#?}", s),
+                        )),
                     })
-                    .collect::<Vec<_>>();
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 if is_root {
-                    quote! {
+                    Ok(quote! {
                         #ty::<#(#generic_types),*>::WIT
-                    }
+                    })
                 } else {
-                    quote! {
+                    Ok(quote! {
                         #ty::<#(#generic_types),*>
-                    }
+                    })
                 }
             }
         }
-        _ => panic!("Unsupported type"),
+        unsupported => Err(syn::Error::new(
+            unsupported.span(),
+            format!("Unsupported type: {:#?}", unsupported),
+        )),
     }
 }
 

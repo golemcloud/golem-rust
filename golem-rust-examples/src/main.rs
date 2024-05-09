@@ -17,6 +17,7 @@ struct Address {
     city: Option<Result<String, String>>,
     state: String,
     zip: String,
+    color: Color,
 }
 
 #[golem()]
@@ -83,19 +84,19 @@ struct GetAddress {}
 // #[distributed_slice(ALL_WIT_TYPES_FOR_GOLEM)]
 // static FUN_WIT: fn() -> &'static WitMeta = || GetAddress::WIT;
 
-// #[test]
-// fn test_iter() {
-//     ALL_WIT_TYPES_FOR_GOLEM.iter().for_each(|f| {
-//         let wit_meta = f();
-//         use WitMeta::*;
+#[test]
+fn test_iter() {
+    ALL_WIT_TYPES_FOR_GOLEM.iter().for_each(|f| {
+        let wit_meta = f();
+        use WitMeta::*;
 
-//         let to_print = match wit_meta {
-//             Struct(struct_meta) => println!("STRUCT {}", struct_meta.name.0),
-//             Function(function_meta) => println!("FUNCTION {}", function_meta.name.0),
-//             _ => println!("todo implement"),
-//         };
+        // let to_print = match wit_meta {
+        //     Record(struct_meta) => println!("STRUCT {}", struct_meta.name.0),
+        //     Function(function_meta) => println!("FUNCTION {}", function_meta.name.0),
+        //     _ => println!("todo implement"),
+        // };
 
-//         println!("{to_print:?}");
-//         println!("\n")
-//     });
-// }
+        println!("{wit_meta:#?}");
+        println!("\n")
+    });
+}
