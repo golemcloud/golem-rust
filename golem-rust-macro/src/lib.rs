@@ -74,42 +74,33 @@ pub fn golem_operation(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn golem(_attr: TokenStream, root_item: TokenStream) -> TokenStream {
     let item_tokens: proc_macro2::TokenStream = root_item.clone().into();
-    let input: DeriveInput = syn::parse_macro_input!(root_item as DeriveInput);
 
-    golem::structure::expand(&item_tokens, &input)
-        .or_else(|_| golem::enumeration::expand(&item_tokens, &input))
+    (if let Ok(derive_input) = syn::parse::<syn::DeriveInput>(root_item.clone()) {
+        golem::structure::expand(&item_tokens, &derive_input)
+            .or_else(|_| golem::enumeration::expand(&item_tokens, &derive_input))
+
+    } else {
+        syn::parse::<syn::ItemFn>(root_item.clone())
+            .and_then(|ast| golem::implement_global_function(ast))
+        
+    })
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 
-    // let global_function =
-    //     parse::<ItemFn>(item.clone()).and_then(|mut t| golem::implement_global_function(&mut t));
 
     // let type_tokens = parse::<ItemType>(item.clone()).and_then(|mut t| {
-    //     eprintln!("ÌTEM TYPE \n{:#?}", t.clone());
 
     //     Ok(t.to_token_stream())
     // });
 
     // let enum_tokens = parse::<ItemEnum>(item.clone()).and_then(|mut t| {
-    //     eprintln!("ENUM TYPE \n{:#?}", t.clone());
 
     //     Ok(t.to_token_stream())
     // });
 
     // let struct_impl = parse::<ItemImpl>(item.clone()).and_then(|mut t| {
-    //     eprintln!("STRUCT IMPL TYPE \n{:#?}", t.clone());
 
     //     Ok(t.to_token_stream())
     // });
 
-    // global_function
-    //     .or_else(|_| type_tokens)
-    //     .or_else(|_| struct_tokens)
-    //     .or_else(|_| enum_tokens)
-    //     .or_else(|_| struct_impl)
-    //     .or_else(|_| Err(Error::new(
-    //         proc_macro2::Span::call_site(),
-    //         "Use golem annotation only to annotate: top level functions, structs, enums and type aliases."
-    //     )))
-    //     .unwrap_or_else(syn::Error::into_compile_error).into()
 }

@@ -40,7 +40,79 @@ struct Addy(String);
 //     }
 // }
 
-struct GetAddress {}
+//struct GetAddress {}
+
+//#[golem()]
+fn get_address() -> Address {
+    Address {
+        street: Option::Some("".to_owned()),
+        city: Some(Ok("".to_owned())),
+        state: "".to_owned(),
+        zip: "".to_owned(),
+        color: Color::BLUE
+    }
+}
+
+enum IpAddrEmpty {
+    V4,
+    V6,
+}
+
+impl HasWitMetadata for IpAddrEmpty {
+    const IDENT: &'static str = "IpAddrEmpty";
+
+    const WIT: &'static WitMeta = &WitMeta::Enum(EnumMeta {
+        name: Ident("IpAddrEmpty"),
+        variants: &[ Ident("V4"), Ident("V6")],
+    });
+}
+
+pub struct BidderId {
+    pub bidder_id: std::result::Result<IpAddrEmpty, String>,
+    pub verified: bool,
+}
+
+// impl <T, E> HasWitMetadata for Result<T,E>
+//     where
+//         T: HasWitMetadata,
+//         E: HasWitMetadata {
+//     const IDENT: &'static str = "Result<T,E>";
+
+//     const WIT: &'static WitMeta = &WitMeta::Empty;
+
+// }
+
+impl HasWitMetadata for BidderId {
+    const IDENT: &'static str = "BidderId";
+
+    const WIT: &'static WitMeta = &WitMeta::Record(RecordMeta {
+        name: Ident("BidderId"),
+        fields: &[
+            ("bidder_id", Result::<IpAddrEmpty, String>::WIT),
+            ("verified", bool::WIT),
+        ]
+    });
+}
+
+//#[golem()]
+fn create_bidder(full_name: String, address: &[String], age: Option<u16>) -> (BidderId, f32) {
+    (BidderId {
+        bidder_id: Result::Err("hello".to_owned()),
+        verified: false
+    }, 35.6)
+}
+
+struct CreateBidder {}
+
+// impl HasWitMetadata for CreateBidder {
+//     const IDENT: &'static str = "create_bidder";
+
+//     const WIT: &'static WitMeta = &WitMeta::Function(FunctionMeta {
+//         name: Ident("create_bidder"),
+//         args: &[],
+//         result: &WitMeta::Tuple(&[BidderId::WIT, f32::WIT]),
+//     });
+// }
 
 // impl HasWitMetadata for GetAddress {
 //     const IDENT: &'static str = "get_address";
