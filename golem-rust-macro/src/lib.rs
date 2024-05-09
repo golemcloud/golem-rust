@@ -14,7 +14,6 @@
 
 use proc_macro::TokenStream;
 
-use quote::ToTokens;
 use syn::*;
 
 use crate::transaction::golem_operation_impl;
@@ -78,6 +77,7 @@ pub fn golem(_attr: TokenStream, root_item: TokenStream) -> TokenStream {
     (if let Ok(derive_input) = syn::parse::<syn::DeriveInput>(root_item.clone()) {
         golem::structure::expand(&item_tokens, &derive_input)
             .or_else(|_| golem::enumeration::expand(&item_tokens, &derive_input))
+            .or_else(|_| golem::variant::expand(&item_tokens, &derive_input))
     } else {
         syn::parse::<syn::ItemFn>(root_item.clone())
             .and_then(|ast| golem::implement_global_function(ast))
