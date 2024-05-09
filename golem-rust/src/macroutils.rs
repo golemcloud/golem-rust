@@ -1,4 +1,41 @@
-//use linkme::distributed_slice;
+pub trait HasWitMetadata {
+    const IDENT: &'static str;
+    const WIT: &'static WitMeta;
+}
+
+mod primitives {
+    use super::*;
+
+    macro_rules! impl_has_wit_metadata {
+    ($($type:ty => $ident:expr => $primitive_meta:expr),+) => {
+        $(
+            impl HasWitMetadata for $type {
+                const IDENT: &'static str = $ident;
+                const WIT: &'static WitMeta = &WitMeta::Primitive($primitive_meta);
+            }
+        )+
+    };
+}
+
+    impl_has_wit_metadata! {
+        i8 => "i8" => PrimitiveMeta::S8,
+        i16 => "i16" => PrimitiveMeta::S16,
+        i32 => "i32" => PrimitiveMeta::S32,
+        i64 => "i64" => PrimitiveMeta::S64,
+
+        u8 => "u8" => PrimitiveMeta::U8,
+        u32 => "u32" => PrimitiveMeta::U32,
+        u64 => "u64" => PrimitiveMeta::U64,
+
+        f32 => "f32" => PrimitiveMeta::F32,
+        f64 => "f64" => PrimitiveMeta::F64,
+
+        bool => "bool" => PrimitiveMeta::Bool,
+        char => "char" => PrimitiveMeta::Char,
+        // TODO: Support all String types.
+        String => "String" => PrimitiveMeta::String
+    }
+}
 
 /**
  * AST TYPES
