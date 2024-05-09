@@ -28,12 +28,13 @@ enum Color {
 }
 
 
-
+#[golem()]
 pub enum IpAddrEmpty {
     V4,
     V6,
 }
 
+#[golem()]
 pub struct BidderId {
     pub bidder_id: std::result::Result<IpAddrEmpty, String>,
     pub verified: bool,
@@ -59,7 +60,6 @@ pub struct BidderId {
 //         ]
 //     });
 // }
-
 // struct CreateBidder {}
 
 // impl HasWitMetadata for CreateBidder {
@@ -67,22 +67,22 @@ pub struct BidderId {
 
 //     const WIT: &'static WitMeta = &WitMeta::Function(FunctionMeta {
 //         name: Ident("create_bidder"),
-//         args: &[],
+//         args: &[("full_name", String::WIT), ("address", Vec::<String>::WIT), ("age", Option::<u16>::WIT)],
 //         result: &WitMeta::Tuple(&[BidderId::WIT, f32::WIT]),
 //     });
 // }
 
-//#[golem()]
-fn create_bidder(full_name: String, address: &[String], age: Option<u16>) -> (BidderId, f32) {
-    (BidderId {
+#[golem()]
+fn create_bidder(full_name: String, address: Vec<String>, age: Option<u16>) -> BidderId {
+    BidderId {
         bidder_id: Result::Err("hello".to_owned()),
         verified: false
-    }, 35.6)
+    }
 }
 
 
 
-//#[golem()]
+#[golem()]
 fn get_address() -> Address {
     Address {
         street: Option::Some("".to_owned()),

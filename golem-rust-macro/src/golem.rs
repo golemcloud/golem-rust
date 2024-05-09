@@ -2,7 +2,7 @@ use darling::{ast, util::IdentString, FromDeriveInput};
 use heck::ToPascalCase;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::spanned::Spanned;
+use syn::{spanned::Spanned, FnArg, ReturnType};
 
 pub mod structure {
     use darling::FromField;
@@ -210,8 +210,6 @@ fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> syn::Result<proc_macro2
 }
 
 pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
-    // let ast = syn::parse::<syn::ItemFn>(token_stream)?;
-
     //get_address
     let function_name = ast.sig.ident.clone();
 
@@ -239,21 +237,55 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
     // "get_address"
     let function_name_string = function_name.to_string();
 
+    let output = ast.sig.output.clone();
+
+    let output_type = (match output.clone() {
+        ReturnType::Default => syn::Result::Err(syn::Error::new(output.span(),"Function needs to have explciit return type")),
+        ReturnType::Type(_, box_type) => {
+            make_type_wit_const(&(*box_type), true)
+        }
+    })?;
+
+    let all_input_args = ast.sig.inputs.clone().into_iter().map(|tpe| {
+        match tpe {
+            FnArg::Receiver(_) => syn::Result::Err(syn::Error::new(output.clone().span(),"Function needs to have explciit return type")),
+            FnArg::Typed(pat_type) => {
+                match (*pat_type.pat) {
+                    syn::Pat::Ident(i) => {
+                        let args_name = i.ident.to_string();
+                        make_type_wit_const(&(*pat_type.ty), true)
+                            .map(|ts| {
+                                quote! {
+                                    (#args_name, #ts)
+                                }
+                            })
+                    },
+                    _ => syn::Result::Err(syn::Error::new(output.span(),"Unexpected error")),
+                }
+                
+            }
+        }
+    }).collect::<::syn::Result<Vec<_>>>()?;
+
+    let fun_args = quote! {
+        &[#(#all_input_args),*]
+    };
+
     let into_wit_impl = quote! {
         impl HasWitMetadata for #struct_name {
             const IDENT: &'static str = #function_name_string;
 
             const WIT: &'static WitMeta = &WitMeta::Function(FunctionMeta {
-                name: Ident("Address"),
-                args: &[],
-                result: Address::WIT,
+                name: Ident(#function_name_string),
+                args: #fun_args,
+                result: #output_type,
             });
         }
     };
 
     Ok(quote!(
         #new_struct
-
+        #into_wit_impl
         #distributed_slice
         #ast
     ))

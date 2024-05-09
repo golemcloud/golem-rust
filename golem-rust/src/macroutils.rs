@@ -100,14 +100,17 @@ mod primitives {
 }
 
     impl_has_wit_metadata! {
-        i8 => "i8" => PrimitiveMeta::S8,
-        i16 => "i16" => PrimitiveMeta::S16,
-        i32 => "i32" => PrimitiveMeta::S32,
-        i64 => "i64" => PrimitiveMeta::S64,
+        i8 => "s8" => PrimitiveMeta::S8,
+        i16 => "s16" => PrimitiveMeta::S16,
+        i32 => "s32" => PrimitiveMeta::S32,
+        i64 => "s64" => PrimitiveMeta::S64,
+        isize => "s64" => PrimitiveMeta::S64,
 
         u8 => "u8" => PrimitiveMeta::U8,
+        u16 => "u16" => PrimitiveMeta::U16,
         u32 => "u32" => PrimitiveMeta::U32,
         u64 => "u64" => PrimitiveMeta::U64,
+        usize => "u64" => PrimitiveMeta::U64,
 
         f32 => "f32" => PrimitiveMeta::F32,
         f64 => "f64" => PrimitiveMeta::F64,
