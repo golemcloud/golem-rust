@@ -120,7 +120,7 @@ pub mod enumeration {
     }
 
     #[derive(Debug, FromDeriveInput)]
-    #[darling(attributes(golem), supports(enum_any))]
+    #[darling(attributes(golem), supports(enum_unit))]
     pub struct EnumContainer {
         pub ident: syn::Ident,
         pub data: ast::Data<EnumVariant, ()>,
