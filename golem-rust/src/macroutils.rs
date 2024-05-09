@@ -12,6 +12,7 @@ pub type WitRef = &'static WitMeta;
 #[derive(Debug)]
 pub enum WitMeta {
     Record(RecordMeta),
+    Variant(VariantMeta),
     Enum(EnumMeta),
     FlagMeta(FlagMeta),
     Result(ResultMeta), // Tuple(Vec<WitMeta>)
@@ -75,6 +76,18 @@ pub struct FlagMeta {
 pub struct ResultMeta {
     pub ok: WitRef,
     pub err: WitRef,
+}
+
+#[derive(Debug)]
+pub struct VariantMeta {
+    pub name: Ident,
+    pub fields: &'static [VariantOption],
+}
+
+#[derive(Debug)]
+pub struct VariantOption {
+    pub name: Ident,
+    pub fields: &'static [WitRef],
 }
 
 #[macro_export]

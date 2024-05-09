@@ -5,11 +5,11 @@ use linkme::distributed_slice;
 
 fn main() {}
 
-// #[golem()]
-// struct Person {
-//     name: String,
-//     address: Address,
-// }
+#[golem()]
+struct Person {
+    name: String,
+    address: Address,
+}
 
 #[golem()]
 struct Address {
@@ -27,7 +27,11 @@ enum Color {
     BLUE,
 }
 
-
+#[golem()]
+enum VariantTest {
+    V1(String, u32),
+    V2(Vec<String>),
+}
 
 pub enum IpAddrEmpty {
     V4,
@@ -74,13 +78,14 @@ pub struct BidderId {
 
 //#[golem()]
 fn create_bidder(full_name: String, address: &[String], age: Option<u16>) -> (BidderId, f32) {
-    (BidderId {
-        bidder_id: Result::Err("hello".to_owned()),
-        verified: false
-    }, 35.6)
+    (
+        BidderId {
+            bidder_id: Result::Err("hello".to_owned()),
+            verified: false,
+        },
+        35.6,
+    )
 }
-
-
 
 //#[golem()]
 fn get_address() -> Address {
@@ -89,7 +94,7 @@ fn get_address() -> Address {
         city: Some(Ok("".to_owned())),
         state: "".to_owned(),
         zip: "".to_owned(),
-        color: Color::BLUE
+        color: Color::BLUE,
     }
 }
 

@@ -9,10 +9,7 @@ pub mod structure {
 
     use super::*;
 
-    pub fn expand(
-        tokens: &proc_macro2::TokenStream,
-        input: &syn::DeriveInput,
-    ) -> syn::Result<proc_macro2::TokenStream> {
+    pub fn expand(tokens: &TokenStream, input: &syn::DeriveInput) -> syn::Result<TokenStream> {
         let struct_meta = StructContainer::from_derive_input(input)?;
 
         let struct_ident = IdentString::new(struct_meta.ident);
@@ -31,18 +28,13 @@ pub mod structure {
                     .as_ref()
                     .expect("Field to have name")
                     .to_string();
-                let type_wit_const = make_type_wit_const(&field.ty, true);
+                let type_wit_const = make_type_wit_const(&field.ty, true)?;
 
-                type_wit_const.map(|ty| (field_name, ty))
+                Ok(quote! {
+                    (#field_name, #type_wit_const)
+                })
             })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // convert the fields to quote.
-        let fields = fields.iter().map(|(name, ty)| {
-            quote! {
-                (#name, #ty)
-            }
-        });
+            .collect::<Result<Vec<TokenStream>, syn::Error>>()?;
 
         let has_wit_metadata = quote! {
             impl ::golem_rust::HasWitMetadata for #struct_ident {
@@ -88,10 +80,7 @@ pub mod enumeration {
 
     use super::*;
 
-    pub fn expand(
-        tokens: &proc_macro2::TokenStream,
-        input: &syn::DeriveInput,
-    ) -> syn::Result<proc_macro2::TokenStream> {
+    pub fn expand(tokens: &TokenStream, input: &syn::DeriveInput) -> syn::Result<TokenStream> {
         let enum_meta = EnumContainer::from_derive_input(input)?;
 
         let enum_ident = IdentString::new(enum_meta.ident);
@@ -139,6 +128,84 @@ pub mod enumeration {
     #[darling(attributes(golem))]
     pub struct EnumVariant {
         pub ident: syn::Ident,
+    }
+}
+
+pub mod variant {
+    use darling::{FromField, FromVariant};
+
+    use super::*;
+
+    pub fn expand(tokens: &TokenStream, input: &syn::DeriveInput) -> syn::Result<TokenStream> {
+        let enum_meta = EnumContainer::from_derive_input(input)?;
+        let enum_ident = IdentString::new(enum_meta.ident);
+        let enum_name = enum_ident.as_str();
+
+        let variants = enum_meta.data.take_enum().expect("Enum to have variants");
+
+        let variant_options = variants
+            .iter()
+            .map(|variant| {
+                let variant_name = variant.ident.to_string();
+                let fields = variant
+                    .fields
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        let type_wit_const = make_type_wit_const(&field.ty, true);
+                        type_wit_const
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let fields_quoted = fields.iter().map(|field| {
+                    quote! { #field }
+                });
+
+                Ok(quote! {
+                    ::golem_rust::VariantOption {
+                        name: ::golem_rust::Ident(#variant_name),
+                        fields: &[ #(#fields_quoted),* ],
+                    }
+                })
+            })
+            .collect::<Result<Vec<TokenStream>, syn::Error>>()?;
+
+        let has_wit_metadata = quote! {
+            impl ::golem_rust::HasWitMetadata for #enum_ident {
+                const IDENT: &'static str = #enum_name;
+                const WIT: &'static ::golem_rust::WitMeta = &::golem_rust::WitMeta::Variant(::golem_rust::VariantMeta {
+                    name: ::golem_rust::Ident(#enum_name),
+                    fields: &[ #(#variant_options),* ],
+                });
+            }
+        };
+
+        let distributed_slice = make_distributed_slice(&enum_ident);
+
+        Ok(quote! {
+            #tokens
+            #has_wit_metadata
+            #distributed_slice
+        })
+    }
+
+    #[derive(Debug, FromDeriveInput)]
+    #[darling(attributes(golem), supports(enum_tuple))]
+    pub struct EnumContainer {
+        pub ident: syn::Ident,
+        pub data: ast::Data<EnumVariant, ()>,
+    }
+
+    #[derive(Debug, FromVariant)]
+    #[darling(attributes(golem))]
+    pub struct EnumVariant {
+        ident: syn::Ident,
+        fields: darling::ast::Fields<FieldItem>,
+    }
+
+    #[derive(Debug, FromField)]
+    pub struct FieldItem {
+        pub ty: syn::Type,
     }
 }
 
