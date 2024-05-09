@@ -3,40 +3,6 @@ pub trait HasWitMetadata {
     const WIT: &'static WitMeta;
 }
 
-mod primitives {
-    use super::*;
-
-    macro_rules! impl_has_wit_metadata {
-    ($($type:ty => $ident:expr => $primitive_meta:expr),+) => {
-        $(
-            impl HasWitMetadata for $type {
-                const IDENT: &'static str = $ident;
-                const WIT: &'static WitMeta = &WitMeta::Primitive($primitive_meta);
-            }
-        )+
-    };
-}
-
-    impl_has_wit_metadata! {
-        i8 => "i8" => PrimitiveMeta::S8,
-        i16 => "i16" => PrimitiveMeta::S16,
-        i32 => "i32" => PrimitiveMeta::S32,
-        i64 => "i64" => PrimitiveMeta::S64,
-
-        u8 => "u8" => PrimitiveMeta::U8,
-        u32 => "u32" => PrimitiveMeta::U32,
-        u64 => "u64" => PrimitiveMeta::U64,
-
-        f32 => "f32" => PrimitiveMeta::F32,
-        f64 => "f64" => PrimitiveMeta::F64,
-
-        bool => "bool" => PrimitiveMeta::Bool,
-        char => "char" => PrimitiveMeta::Char,
-        // TODO: Support all String types.
-        String => "String" => PrimitiveMeta::String
-    }
-}
-
 /**
  * AST TYPES
  */
@@ -45,13 +11,14 @@ pub type WitRef = &'static WitMeta;
 
 #[derive(Debug)]
 pub enum WitMeta {
-    Struct(StructMeta),
+    Record(RecordMeta),
     Enum(EnumMeta),
     FlagMeta(FlagMeta),
     Result(ResultMeta), // Tuple(Vec<WitMeta>)
     Option(WitRef),
     List(WitRef),
     Alias(WitRef),
+    Tuple(&'static [WitRef]),
     Primitive(PrimitiveMeta),
     Function(FunctionMeta),
 }
@@ -87,7 +54,7 @@ pub struct FunctionMeta {
 }
 
 #[derive(Debug)]
-pub struct StructMeta {
+pub struct RecordMeta {
     pub name: Ident,
     pub fields: &'static [(&'static str, WitRef)],
 }
@@ -95,13 +62,13 @@ pub struct StructMeta {
 #[derive(Debug)]
 pub struct EnumMeta {
     pub name: Ident,
-    pub variants: Vec<Ident>,
+    pub variants: &'static [Ident],
 }
 
 #[derive(Debug)]
 pub struct FlagMeta {
     pub name: Ident,
-    pub variants: Vec<Ident>,
+    pub variants: &'static [Ident],
 }
 
 #[derive(Debug)]
@@ -116,4 +83,60 @@ macro_rules! golem_gen {
         #[distributed_slice]
         pub static ALL_WIT_TYPES_FOR_GOLEM: [fn() -> &'static WitMeta];
     };
+}
+
+mod primitives {
+    use super::*;
+
+    macro_rules! impl_has_wit_metadata {
+    ($($type:ty => $ident:expr => $primitive_meta:expr),+) => {
+        $(
+            impl HasWitMetadata for $type {
+                const IDENT: &'static str = $ident;
+                const WIT: &'static WitMeta = &WitMeta::Primitive($primitive_meta);
+            }
+        )+
+    };
+}
+
+    impl_has_wit_metadata! {
+        i8 => "i8" => PrimitiveMeta::S8,
+        i16 => "i16" => PrimitiveMeta::S16,
+        i32 => "i32" => PrimitiveMeta::S32,
+        i64 => "i64" => PrimitiveMeta::S64,
+
+        u8 => "u8" => PrimitiveMeta::U8,
+        u32 => "u32" => PrimitiveMeta::U32,
+        u64 => "u64" => PrimitiveMeta::U64,
+
+        f32 => "f32" => PrimitiveMeta::F32,
+        f64 => "f64" => PrimitiveMeta::F64,
+
+        bool => "bool" => PrimitiveMeta::Bool,
+        char => "char" => PrimitiveMeta::Char,
+        // TODO: Support all String types.
+        String => "String" => PrimitiveMeta::String
+    }
+
+    impl<T, E> HasWitMetadata for Result<T, E>
+    where
+        T: HasWitMetadata,
+        E: HasWitMetadata,
+    {
+        const IDENT: &'static str = "Result";
+
+        const WIT: &'static WitMeta = &WitMeta::Result(ResultMeta {
+            ok: T::WIT,
+            err: E::WIT,
+        });
+    }
+
+    impl<T> HasWitMetadata for Option<T>
+    where
+        T: HasWitMetadata,
+    {
+        const IDENT: &'static str = "Option";
+
+        const WIT: &'static WitMeta = &WitMeta::Option(T::WIT);
+    }
 }
