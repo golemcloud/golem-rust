@@ -163,23 +163,16 @@ fn make_distributed_slice(ident: &IdentString) -> proc_macro2::TokenStream {
 fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> syn::Result<proc_macro2::TokenStream> {
     match ty {
         syn::Type::Path(syn::TypePath { path, qself: None }) => {
-            let ty = &path.segments.last().unwrap().ident;
+            let ty = &path.segments.last().expect("Paths to be non-empty").ident;
+
             let generic_args = match &path.segments.last().unwrap().arguments {
-                syn::PathArguments::AngleBracketed(args) => args.args.iter().collect::<Vec<_>>(),
-                _ => Vec::new(),
+                syn::PathArguments::AngleBracketed(args) => {
+                    Some(args.args.iter().collect::<Vec<_>>())
+                }
+                _ => None,
             };
 
-            if generic_args.is_empty() {
-                if is_root {
-                    Ok(quote! {
-                        #ty::WIT
-                    })
-                } else {
-                    Ok(quote! {
-                        #ty
-                    })
-                }
-            } else {
+            if let Some(generic_args) = generic_args {
                 let generic_types = generic_args
                     .iter()
                     .map(|arg| match arg {
@@ -198,6 +191,16 @@ fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> syn::Result<proc_macro2
                 } else {
                     Ok(quote! {
                         #ty::<#(#generic_types),*>
+                    })
+                }
+            } else {
+                if is_root {
+                    Ok(quote! {
+                        #ty::WIT
+                    })
+                } else {
+                    Ok(quote! {
+                        #ty
                     })
                 }
             }
