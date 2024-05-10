@@ -18,8 +18,7 @@ pub enum WitMeta {
     Result(ResultMeta), // Tuple(Vec<WitMeta>)
     Option(WitRef),
     List(WitRef),
-    Alias(WitRef),
-    Tuple(&'static [WitRef]),
+    Tuple(TupleMeta),
     Primitive(PrimitiveMeta),
     Function(FunctionMeta),
 }
@@ -88,6 +87,11 @@ pub struct VariantMeta {
 pub struct VariantOption {
     pub name: Ident,
     pub fields: &'static [WitRef],
+}
+
+#[derive(Debug)]
+pub struct TupleMeta {
+    pub items: &'static [WitRef],
 }
 
 #[macro_export]
@@ -174,7 +178,7 @@ mod primitives {
                 $($ty: HasWitMetadata),*
             {
                 const IDENT: &'static str = "Tuple";
-                const WIT: &'static WitMeta = &WitMeta::Tuple(&[$($ty::WIT),*]);
+                const WIT: &'static WitMeta = &WitMeta::Tuple(TupleMeta { items: &[$($ty::WIT),*]});
             }
         };
     }

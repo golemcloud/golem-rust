@@ -81,6 +81,7 @@ name = "golem-rust-examples"
 version = "0.1.0"
 dependencies = [
  "golem-rust",
+ "heck",
  "linkme",
 ]
 
