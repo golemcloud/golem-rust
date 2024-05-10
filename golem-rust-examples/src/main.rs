@@ -250,6 +250,8 @@ mod into_wit {
             // keep track of prev to know when to add a hyphen.
             let mut prev_char_uppercase = false;
 
+            let s = s.trim_start_matches('_').trim_end_matches('_');
+
             for (index, c) in s.char_indices() {
                 if c.is_uppercase() {
                     if index > 0 && !prev_char_uppercase {
