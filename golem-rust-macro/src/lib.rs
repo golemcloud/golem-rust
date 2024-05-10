@@ -92,8 +92,7 @@ pub fn golem(_attr: TokenStream, root_item: TokenStream) -> TokenStream {
             }
         }
     } else {
-        syn::parse::<syn::ItemFn>(root_item.clone())
-            .and_then(|ast| golem::implement_global_function(ast))
+        syn::parse::<syn::ItemFn>(root_item.clone()).and_then(golem::implement_global_function)
     })
     .unwrap_or_else(syn::Error::into_compile_error)
     .into()

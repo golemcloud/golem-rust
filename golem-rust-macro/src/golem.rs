@@ -170,10 +170,7 @@ pub mod variant {
                     .fields
                     .fields
                     .iter()
-                    .map(|field| {
-                        let type_wit_const = type_wit_ref(&field.ty);
-                        type_wit_const
-                    })
+                    .map(|field| type_wit_ref(&field.ty))
                     .collect::<Result<Vec<_>, _>>()?;
 
                 let fields_quoted = fields.iter().map(|field| {
@@ -299,10 +296,7 @@ fn type_wit_ref(ty: &syn::Type) -> syn::Result<TokenStream> {
                 }
             }
             syn::Type::Tuple(syn::TypeTuple { elems, .. }) => {
-                let generic_types = elems
-                    .iter()
-                    .map(|ty| go(ty))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let generic_types = elems.iter().map(go).collect::<Result<Vec<_>, _>>()?;
 
                 Ok(quote! {
                     (#(#generic_types),*)
@@ -310,12 +304,9 @@ fn type_wit_ref(ty: &syn::Type) -> syn::Result<TokenStream> {
             }
             unsupported @ syn::Type::Reference(_) => Err(syn::Error::new(
                 unsupported.span(),
-                format!("Unsupported type: References are not allowed. All data must be owned"),
+                "Unsupported type: References are not allowed. All data must be owned",
             )),
-            unsupported => Err(syn::Error::new(
-                unsupported.span(),
-                format!("Unsupported type"),
-            )),
+            unsupported => Err(syn::Error::new(unsupported.span(), "Unsupported type")),
         }
     }
 
@@ -348,7 +339,7 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
             ast.sig.output.span(),
             "Function needs to have explicit return type",
         )),
-        ReturnType::Type(_, box_type) => type_wit_ref(&(*box_type)),
+        ReturnType::Type(_, box_type) => type_wit_ref(box_type),
     })?;
 
     let all_input_args = ast
@@ -363,7 +354,7 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
             FnArg::Typed(pat_type) => match &*pat_type.pat {
                 syn::Pat::Ident(i) => {
                     let args_name = i.ident.to_string();
-                    type_wit_ref(&*pat_type.ty).map(|ts| {
+                    type_wit_ref(&pat_type.ty).map(|ts| {
                         quote! {
                                 (#args_name, &#ts)
                         }
