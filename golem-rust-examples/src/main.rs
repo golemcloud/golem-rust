@@ -22,9 +22,10 @@ struct Address {
 
 #[golem()]
 enum Color {
-    RED,
-    GREEN,
-    BLUE,
+    Red,
+    Green,
+    Blue,
+    BlueGreen,
 }
 
 #[golem()]
@@ -34,14 +35,8 @@ enum VariantTest {
 }
 
 #[golem()]
-pub enum IpAddrEmpty {
-    V4,
-    V6,
-}
-
-#[golem()]
 pub struct BidderId {
-    pub bidder_id: std::result::Result<IpAddrEmpty, String>,
+    pub bidder_id: std::result::Result<Color, String>,
     pub verified: bool,
 }
 
@@ -60,7 +55,7 @@ fn get_address() -> Address {
         city: Some(Ok("".to_owned())),
         state: "".to_owned(),
         zip: "".to_owned(),
-        color: Color::BLUE,
+        color: Color::Blue,
     }
 }
 
@@ -201,7 +196,7 @@ mod into_wit {
                         ", ",
                         meta.args.iter().map(|(name, wit)| {
                             |w: &mut Self| {
-                                w.write_str(name.as_ref())?;
+                                w.write_kebab(*name)?;
                                 w.write_str(": ")?;
                                 w.wit_ref(wit)
                             }
@@ -244,13 +239,11 @@ mod into_wit {
                 }
                 Tuple(meta) => {
                     self.write_str("tuple<")?;
-                    for (i, wit) in meta.items.iter().enumerate() {
-                        if i > 0 {
-                            self.write_str(", ")?;
-                        }
-                        self.wit_ref(wit)?;
-                    }
-                    self.write_str(">")
+                    self.interleave(
+                        "",
+                        ", ",
+                        meta.items.iter().map(|wit| |w: &mut Self| w.wit_ref(wit)),
+                    )
                 }
                 Primitive(meta) => self.write_str(primitive_wit(meta)),
                 Function(_) => {
@@ -261,6 +254,7 @@ mod into_wit {
 
         #[inline]
         fn write_kebab(&mut self, s: &str) -> Res<()> {
+            // keep track of prev to know when to add a hyphen.
             let mut prev_char_uppercase = false;
 
             for (index, c) in s.char_indices() {
@@ -310,6 +304,7 @@ mod into_wit {
         }
     }
 
+    #[inline]
     fn primitive_wit(meta: &PrimitiveMeta) -> &'static str {
         match meta {
             PrimitiveMeta::S8 => "s8",
