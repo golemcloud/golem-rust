@@ -6,57 +6,67 @@ use linkme::distributed_slice;
 
 fn main() {}
 
-#[golem()]
-struct Person {
-    name: String,
-    address: Address,
-}
+// disable unused code for now
+#[allow(dead_code)]
+mod trial {
+    use super::*;
 
-#[golem()]
-struct Address {
-    street: Option<String>,
-    city: Option<Result<String, String>>,
-    state: String,
-    zip: String,
-    color: Color,
-}
-
-#[golem()]
-enum Color {
-    Red,
-    Green,
-    Blue,
-    BlueGreen,
-}
-
-#[golem()]
-enum VariantTest {
-    V1(String, u32),
-    V2(Vec<String>),
-}
-
-#[golem()]
-pub struct BidderId {
-    pub bidder_id: std::result::Result<Color, String>,
-    pub verified: bool,
-}
-
-#[golem()]
-fn create_bidder(full_name: String, address: Vec<String>, age: Option<u16>) -> BidderId {
-    BidderId {
-        bidder_id: Result::Err("hello".to_owned()),
-        verified: false,
+    #[golem()]
+    struct Person {
+        name: String,
+        address: Address,
     }
-}
 
-#[golem()]
-fn get_address() -> Address {
-    Address {
-        street: Option::Some("".to_owned()),
-        city: Some(Ok("".to_owned())),
-        state: "".to_owned(),
-        zip: "".to_owned(),
-        color: Color::Blue,
+    #[golem()]
+    struct Address {
+        street: Option<String>,
+        city: Option<Result<String, String>>,
+        state: String,
+        zip: String,
+        color: Color,
+    }
+
+    #[golem()]
+    enum Color {
+        Red,
+        Green,
+        Blue,
+        BlueGreen,
+    }
+
+    #[golem()]
+    enum VariantTest {
+        V1(String, u32),
+        V2(Vec<String>),
+    }
+
+    #[golem()]
+    struct BidderId {
+        pub bidder_id: std::result::Result<Color, String>,
+        pub verified: bool,
+    }
+
+    #[golem()]
+    fn create_bidder(full_name: String, address: Vec<String>, age: Option<u16>) -> BidderId {
+        let _ = full_name;
+        let _ = address;
+        let _ = age;
+
+        BidderId {
+            bidder_id: Result::Err("hello".to_owned()),
+            verified: false,
+        }
+    }
+
+    #[golem()]
+    fn get_address() -> Address {
+        Address {
+            street: Option::Some("".to_owned()),
+            city: Some(Ok("".to_owned())),
+            state: "".to_owned(),
+            zip: "".to_owned(),
+            color: Color::Blue,
+        }
     }
 }
 
@@ -94,7 +104,6 @@ mod into_wit {
 
     #[derive(Debug)]
     pub enum SerializeError {
-        Unsupported(&'static str),
         Io(std::io::Error),
     }
 
