@@ -28,25 +28,34 @@ pub mod structure {
                     .as_ref()
                     .expect("Field to have name")
                     .to_string();
-                let type_wit_const = make_type_wit_const(&field.ty)?;
+                let type_wit_const = type_wit_ref(&field.ty)?;
 
                 Ok(quote! {
-                    (#field_name, #type_wit_const)
+                    (#field_name, &#type_wit_const)
                 })
             })
             .collect::<Result<Vec<TokenStream>, syn::Error>>()?;
 
-        let has_wit_metadata = quote! {
-            impl ::golem_rust::HasWitMetadata for #struct_ident {
+        let record_meta = quote! {
+            ::golem_rust::RecordMeta {
+                name: ::golem_rust::Ident(#struct_name),
+                fields: &[
+                    #( #fields ),*
+                ],
+            }
+        };
+
+        let has_wit_export = quote! {
+            impl ::golem_rust::HasWitExport for #struct_ident {
                 const IDENT: &'static str = #struct_name;
 
-                const WIT: &'static ::golem_rust::WitMeta = &::golem_rust::WitMeta::Record(::golem_rust::RecordMeta {
-                    name: ::golem_rust::Ident(#struct_name),
-                    fields: &[
-                        #( #fields ),*
-                    ],
-                });
+                const WIT: ::golem_rust::WitExport = ::golem_rust::WitExport::Record(#record_meta);
+            }
+        };
 
+        let has_wit_ref = quote! {
+            impl ::golem_rust::HasWitMeta for #struct_ident {
+                const REF: ::golem_rust::WitMeta = ::golem_rust::WitMeta::Record(#record_meta);
             }
         };
 
@@ -54,7 +63,8 @@ pub mod structure {
 
         Ok(quote! {
             #tokens
-            #has_wit_metadata
+            #has_wit_export
+            #has_wit_ref
             #distributed_slice
         })
     }
@@ -94,17 +104,25 @@ pub mod enumeration {
             quote!(::golem_rust::Ident(#variant_name))
         });
 
-        let has_wit_metadata = quote! {
-            impl ::golem_rust::HasWitMetadata for #enum_ident {
+        let enum_meta = quote! {
+            ::golem_rust::EnumMeta {
+                name: ::golem_rust::Ident(#enum_name),
+                variants: &[
+                    #( #variants ),*
+                ],
+            }
+        };
+
+        let has_wit_export = quote! {
+            impl ::golem_rust::HasWitExport for #enum_ident {
                 const IDENT: &'static str = #enum_name;
+                const WIT: ::golem_rust::WitExport = ::golem_rust::WitExport::Enum(#enum_meta);
+            }
+        };
 
-                const WIT: &'static ::golem_rust::WitMeta = &::golem_rust::WitMeta::Enum(::golem_rust::EnumMeta {
-                    name: ::golem_rust::Ident(#enum_name),
-                    variants: &[
-                        #( #variants ),*
-                    ],
-                });
-
+        let has_wit_meta = quote! {
+            impl ::golem_rust::HasWitMeta for #enum_ident {
+                const REF: ::golem_rust::WitMeta = ::golem_rust::WitMeta::Enum(#enum_meta);
             }
         };
 
@@ -112,7 +130,8 @@ pub mod enumeration {
 
         Ok(quote! {
             #tokens
-            #has_wit_metadata
+            #has_wit_export
+            #has_wit_meta
             #distributed_slice
         })
     }
@@ -152,13 +171,13 @@ pub mod variant {
                     .fields
                     .iter()
                     .map(|field| {
-                        let type_wit_const = make_type_wit_const(&field.ty);
+                        let type_wit_const = type_wit_ref(&field.ty);
                         type_wit_const
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
                 let fields_quoted = fields.iter().map(|field| {
-                    quote! { #field }
+                    quote! { &#field }
                 });
 
                 Ok(quote! {
@@ -170,13 +189,23 @@ pub mod variant {
             })
             .collect::<Result<Vec<TokenStream>, syn::Error>>()?;
 
-        let has_wit_metadata = quote! {
-            impl ::golem_rust::HasWitMetadata for #enum_ident {
+        let variant_meta = quote! {
+            ::golem_rust::VariantMeta {
+                name: ::golem_rust::Ident(#enum_name),
+                fields: &[ #(#variant_options),* ],
+            }
+        };
+
+        let has_wit_export = quote! {
+            impl ::golem_rust::HasWitExport for #enum_ident {
                 const IDENT: &'static str = #enum_name;
-                const WIT: &'static ::golem_rust::WitMeta = &::golem_rust::WitMeta::Variant(::golem_rust::VariantMeta {
-                    name: ::golem_rust::Ident(#enum_name),
-                    fields: &[ #(#variant_options),* ],
-                });
+                const WIT: ::golem_rust::WitExport = ::golem_rust::WitExport::Variant(#variant_meta);
+            }
+        };
+
+        let has_wit_ref = quote! {
+            impl ::golem_rust::HasWitMeta for #enum_ident {
+                const REF: ::golem_rust::WitMeta = ::golem_rust::WitMeta::Variant(#variant_meta);
             }
         };
 
@@ -184,7 +213,8 @@ pub mod variant {
 
         Ok(quote! {
             #tokens
-            #has_wit_metadata
+            #has_wit_export
+            #has_wit_ref
             #distributed_slice
         })
     }
@@ -219,18 +249,18 @@ fn make_distributed_slice(ident: &IdentString) -> TokenStream {
 
     quote! {
         #[distributed_slice(crate::ALL_WIT_TYPES_FOR_GOLEM)]
-        static #slice_ident: fn() -> &'static ::golem_rust::WitMeta = || #ident::WIT;
+        static #slice_ident: fn() -> ::golem_rust::WitExport = || #ident::WIT;
     }
 }
 
-// Result<A, B> -> Result::<A, B>::WIT
-// Option<T> -> Option::<T>::WIT
-// Vec<T> -> Vec::<T>::WIT
-// Result<Option<T>, E> -> Result::<Option::<T>, E>::WIT
-// (T, U) -> (T, U)::WIT
-// std::result::Result<T, E> -> std::result::Result::<T, E>::WIT
-fn make_type_wit_const(ty: &syn::Type) -> syn::Result<TokenStream> {
-    fn go(ty: &syn::Type, is_root: bool) -> syn::Result<TokenStream> {
+// Result<A, B> -> Result::<A, B>::REF
+// Option<T> -> Option::<T>::REF
+// Vec<T> -> Vec::<T>::REF
+// Result<Option<T>, E> -> Result::<Option::<T>, E>::REF
+// (T, U) -> (T, U)::REF
+// std::result::Result<T, E> -> std::result::Result::<T, E>::REF
+fn type_wit_ref(ty: &syn::Type) -> syn::Result<TokenStream> {
+    fn go(ty: &syn::Type) -> syn::Result<TokenStream> {
         match ty {
             syn::Type::Path(syn::TypePath { path, qself: None }) => {
                 let generic_args = match &path.segments.last().unwrap().arguments {
@@ -251,7 +281,7 @@ fn make_type_wit_const(ty: &syn::Type) -> syn::Result<TokenStream> {
                     let generic_types = generic_args
                         .iter()
                         .map(|arg| match arg {
-                            syn::GenericArgument::Type(ty) => go(ty, false),
+                            syn::GenericArgument::Type(ty) => go(ty),
                             s => Err(syn::Error::new(
                                 s.span(),
                                 format!("Unsupported generic argument: {:#?}", s),
@@ -259,42 +289,24 @@ fn make_type_wit_const(ty: &syn::Type) -> syn::Result<TokenStream> {
                         })
                         .collect::<Result<Vec<_>, _>>()?;
 
-                    if is_root {
-                        Ok(quote! {
-                            #path::<#(#generic_types),*>::WIT
-                        })
-                    } else {
-                        Ok(quote! {
-                            #path::<#(#generic_types),*>
-                        })
-                    }
+                    Ok(quote! {
+                        #path::<#(#generic_types),*>
+                    })
                 } else {
-                    if is_root {
-                        Ok(quote! {
-                            #path::WIT
-                        })
-                    } else {
-                        Ok(quote! {
-                            #path
-                        })
-                    }
+                    Ok(quote! {
+                        #path
+                    })
                 }
             }
             syn::Type::Tuple(syn::TypeTuple { elems, .. }) => {
                 let generic_types = elems
                     .iter()
-                    .map(|ty| go(ty, false))
+                    .map(|ty| go(ty))
                     .collect::<Result<Vec<_>, _>>()?;
 
-                if is_root {
-                    Ok(quote! {
-                        (#(#generic_types),*)::WIT
-                    })
-                } else {
-                    Ok(quote! {
-                        (#(#generic_types),*)
-                    })
-                }
+                Ok(quote! {
+                    (#(#generic_types),*)
+                })
             }
             unsupported @ syn::Type::Reference(_) => Err(syn::Error::new(
                 unsupported.span(),
@@ -307,7 +319,11 @@ fn make_type_wit_const(ty: &syn::Type) -> syn::Result<TokenStream> {
         }
     }
 
-    go(ty, true)
+    let result = go(ty)?;
+
+    Ok(quote! {
+        #result::REF
+    })
 }
 
 pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
@@ -327,36 +343,33 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
     // "get_address"
     let function_name_string = function_name.as_str();
 
-    let output = ast.sig.output.clone();
-
-    let output_type = (match output.clone() {
+    let output_type = (match &ast.sig.output {
         ReturnType::Default => syn::Result::Err(syn::Error::new(
-            output.span(),
+            ast.sig.output.span(),
             "Function needs to have explicit return type",
         )),
-        ReturnType::Type(_, box_type) => make_type_wit_const(&(*box_type)),
+        ReturnType::Type(_, box_type) => type_wit_ref(&(*box_type)),
     })?;
 
     let all_input_args = ast
         .sig
         .inputs
-        .clone()
-        .into_iter()
+        .iter()
         .map(|tpe| match tpe {
             FnArg::Receiver(_) => syn::Result::Err(syn::Error::new(
-                output.clone().span(),
+                tpe.span(),
                 "Function needs to have explicit return type",
             )),
-            FnArg::Typed(pat_type) => match *pat_type.pat {
+            FnArg::Typed(pat_type) => match &*pat_type.pat {
                 syn::Pat::Ident(i) => {
                     let args_name = i.ident.to_string();
-                    make_type_wit_const(&(*pat_type.ty)).map(|ts| {
+                    type_wit_ref(&*pat_type.ty).map(|ts| {
                         quote! {
-                            (#args_name, #ts)
+                                (#args_name, &#ts)
                         }
                     })
                 }
-                _ => syn::Result::Err(syn::Error::new(output.span(), "Unexpected pattern")),
+                _ => syn::Result::Err(syn::Error::new(pat_type.span(), "Unexpected pattern")),
             },
         })
         .collect::<::syn::Result<Vec<_>>>()?;
@@ -366,13 +379,13 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
     };
 
     let into_wit_impl = quote! {
-        impl HasWitMetadata for #struct_name {
+        impl HasWitExport for #struct_name {
             const IDENT: &'static str = #function_name_string;
 
-            const WIT: &'static WitMeta = &WitMeta::Function(FunctionMeta {
+            const WIT: WitExport = WitExport::Function(FunctionMeta {
                 name: Ident(#function_name_string),
                 args: #fun_args,
-                result: #output_type,
+                result: &#output_type,
             });
         }
     };
@@ -397,7 +410,7 @@ mod tests {
     #[track_caller]
     fn test_make_type_wit_const(ty: syn::Type, expected: proc_macro2::TokenStream) {
         let location = Location::caller();
-        let result = make_type_wit_const(&ty).unwrap();
+        let result = type_wit_ref(&ty).unwrap();
         let result_str = result.to_string();
         let expected_str = expected.to_string();
         if result_str != expected_str {
@@ -413,32 +426,32 @@ mod tests {
 
     #[test]
     fn test_basic_type() {
-        test_make_type_wit_const(parse_quote!(String), quote!(String::WIT));
+        test_make_type_wit_const(parse_quote!(String), quote!(String::REF));
     }
 
     #[test]
     fn test_generic_type() {
-        test_make_type_wit_const(parse_quote!(Option<String>), quote!(Option::<String>::WIT));
+        test_make_type_wit_const(parse_quote!(Option<String>), quote!(Option::<String>::REF));
     }
 
     #[test]
     fn test_nested_generic_type() {
         test_make_type_wit_const(
             parse_quote!(Result<Option<String>, String>),
-            quote!(Result::<Option::<String>, String>::WIT),
+            quote!(Result::<Option::<String>, String>::REF),
         );
     }
 
     #[test]
     fn test_tuple_type() {
-        test_make_type_wit_const(parse_quote!((String, u32)), quote!((String, u32)::WIT));
+        test_make_type_wit_const(parse_quote!((String, u32)), quote!((String, u32)::REF));
     }
 
     #[test]
     fn test_nested_tuple_type() {
         test_make_type_wit_const(
             parse_quote!(Result<(String, u32), String>),
-            quote!(Result::<(String, u32), String>::WIT),
+            quote!(Result::<(String, u32), String>::REF),
         );
     }
 
@@ -446,7 +459,7 @@ mod tests {
     fn test_full_path() {
         test_make_type_wit_const(
             parse_quote!(std::result::Result<(std::option::Option<String>, u32), String>),
-            quote!(std::result::Result::<(std::option::Option::<String>, u32), String>::WIT),
+            quote!(std::result::Result::<(std::option::Option::<String>, u32), String>::REF),
         );
     }
 }

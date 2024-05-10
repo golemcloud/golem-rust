@@ -1,4 +1,5 @@
-golem_gen!();
+#[distributed_slice]
+pub static ALL_WIT_TYPES_FOR_GOLEM: [fn() -> WitExport];
 
 use golem_rust::*;
 use linkme::distributed_slice;
@@ -59,24 +60,12 @@ fn get_address() -> Address {
     }
 }
 
-// struct GetAddress {}
-
-// impl HasWitMetadata for GetAddress {
-//     const IDENT: &'static str = "get_address";
-
-//     const WIT: &'static WitMeta = &WitMeta::Function(FunctionMeta {
-//         name: Ident("Address"),
-//         args: &[],
-//         result: Address::WIT,
-//     });
-// }
-
 #[test]
 fn test_iter() {
     ALL_WIT_TYPES_FOR_GOLEM.iter().for_each(|f| {
         let wit_meta = f();
 
-        let wit_string = into_wit::into_wit(wit_meta).unwrap();
+        let wit_string = into_wit::into_wit(&wit_meta).unwrap();
 
         println!("{wit_string}\n");
     });
@@ -85,12 +74,13 @@ fn test_iter() {
 #[cfg(test)]
 mod into_wit {
     use golem_rust::{
-        PrimitiveMeta,
-        WitMeta::{self, *},
+        PrimitiveMeta, WitExport,
+        WitExport::*,
+        WitMeta::{self},
     };
     use std::io::Write;
 
-    pub fn into_wit(meta: &WitMeta) -> Res<String> {
+    pub fn into_wit(meta: &WitExport) -> Res<String> {
         let mut writer = Vec::new();
         let mut serializer = WitSerializer::new(&mut writer);
         serializer.into_wit(meta)?;
@@ -124,7 +114,7 @@ mod into_wit {
             }
         }
 
-        fn into_wit(&mut self, meta: &WitMeta) -> Res<()> {
+        fn into_wit(&mut self, meta: &WitExport) -> Res<()> {
             match meta {
                 Record(meta) => {
                     self.write_str("record ")?;
@@ -205,16 +195,13 @@ mod into_wit {
                     self.write_str(") -> ")?;
                     self.wit_ref(&meta.result)?;
                 }
-                _ => {
-                    return Err(SerializeError::Unsupported(
-                        "Unsupported top level wit type",
-                    ))
-                }
+                Flag(_) => todo!(),
             }
             Ok(())
         }
 
         fn wit_ref(&mut self, wit: &WitMeta) -> Res<()> {
+            use WitMeta::*;
             match wit {
                 Record(meta) => self.write_kebab(&meta.name.0),
                 Variant(meta) => self.write_kebab(&meta.name.0),
@@ -246,9 +233,6 @@ mod into_wit {
                     )
                 }
                 Primitive(meta) => self.write_str(primitive_wit(meta)),
-                Function(_) => {
-                    return Err(SerializeError::Unsupported("Unsupported Reference Type"))
-                }
             }
         }
 
@@ -265,6 +249,9 @@ mod into_wit {
                     let lowered = c.to_lowercase().to_string();
                     self.writer.write_all(lowered.as_bytes())?;
                     prev_char_uppercase = true;
+                } else if c == '_' {
+                    self.writer.write_all(&[b'-'])?;
+                    prev_char_uppercase = false;
                 } else {
                     self.writer.write_all(&[c as u8])?;
                     prev_char_uppercase = false;

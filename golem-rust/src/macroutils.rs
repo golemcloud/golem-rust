@@ -1,26 +1,40 @@
-pub trait HasWitMetadata {
+/// Exports that will go into generated WIT file.
+pub trait HasWitExport {
     const IDENT: &'static str;
-    const WIT: &'static WitMeta;
+    const WIT: WitExport;
+}
+
+/// Non exported types, usually will be used for references.
+pub trait HasWitMeta {
+    const REF: WitMeta;
+}
+
+#[derive(Debug)]
+pub enum WitExport {
+    Record(RecordMeta),
+    Variant(VariantMeta),
+    Enum(EnumMeta),
+    Flag(FlagMeta),
+    Function(FunctionMeta),
 }
 
 /**
  * AST TYPES
  */
 
-pub type WitRef = &'static WitMeta;
+pub type WitMetaRef = &'static WitMeta;
 
 #[derive(Debug)]
 pub enum WitMeta {
+    Result(ResultMeta),
+    Option(WitMetaRef),
+    List(WitMetaRef),
+    Tuple(TupleMeta),
+    Primitive(PrimitiveMeta),
     Record(RecordMeta),
     Variant(VariantMeta),
     Enum(EnumMeta),
     FlagMeta(FlagMeta),
-    Result(ResultMeta), // Tuple(Vec<WitMeta>)
-    Option(WitRef),
-    List(WitRef),
-    Tuple(TupleMeta),
-    Primitive(PrimitiveMeta),
-    Function(FunctionMeta),
 }
 
 #[derive(Debug)]
@@ -49,14 +63,14 @@ pub struct Ident(pub &'static str);
 #[derive(Debug)]
 pub struct FunctionMeta {
     pub name: Ident,
-    pub args: &'static [(&'static str, WitRef)],
-    pub result: WitRef,
+    pub args: &'static [(&'static str, WitMetaRef)],
+    pub result: WitMetaRef,
 }
 
 #[derive(Debug)]
 pub struct RecordMeta {
     pub name: Ident,
-    pub fields: &'static [(&'static str, WitRef)],
+    pub fields: &'static [(&'static str, WitMetaRef)],
 }
 
 #[derive(Debug)]
@@ -73,8 +87,8 @@ pub struct FlagMeta {
 
 #[derive(Debug)]
 pub struct ResultMeta {
-    pub ok: WitRef,
-    pub err: WitRef,
+    pub ok: WitMetaRef,
+    pub err: WitMetaRef,
 }
 
 #[derive(Debug)]
@@ -86,19 +100,19 @@ pub struct VariantMeta {
 #[derive(Debug)]
 pub struct VariantOption {
     pub name: Ident,
-    pub fields: &'static [WitRef],
+    pub fields: &'static [WitMetaRef],
 }
 
 #[derive(Debug)]
 pub struct TupleMeta {
-    pub items: &'static [WitRef],
+    pub items: &'static [WitMetaRef],
 }
 
 #[macro_export]
 macro_rules! golem_gen {
     () => {
         #[distributed_slice]
-        pub static ALL_WIT_TYPES_FOR_GOLEM: [fn() -> &'static WitMeta];
+        pub static ALL_WIT_TYPES_FOR_GOLEM: [fn() -> WitExport];
     };
 }
 
@@ -110,9 +124,8 @@ mod primitives {
     macro_rules! impl_has_wit_metadata {
     ($($type:ty => $ident:expr => $primitive_meta:expr),+) => {
         $(
-            impl HasWitMetadata for $type {
-                const IDENT: &'static str = $ident;
-                const WIT: &'static WitMeta = &WitMeta::Primitive($primitive_meta);
+            impl HasWitMeta for $type {
+                const REF: WitMeta= WitMeta::Primitive($primitive_meta);
             }
         )+
     };
@@ -140,45 +153,38 @@ mod primitives {
         String => "String" => PrimitiveMeta::String
     }
 
-    impl<T, E> HasWitMetadata for Result<T, E>
+    impl<T, E> HasWitMeta for Result<T, E>
     where
-        T: HasWitMetadata,
-        E: HasWitMetadata,
+        T: HasWitMeta,
+        E: HasWitMeta,
     {
-        const IDENT: &'static str = "Result";
-
-        const WIT: &'static WitMeta = &WitMeta::Result(ResultMeta {
-            ok: T::WIT,
-            err: E::WIT,
+        const REF: WitMeta = WitMeta::Result(ResultMeta {
+            ok: &T::REF,
+            err: &E::REF,
         });
     }
 
-    impl<T> HasWitMetadata for Option<T>
+    impl<T> HasWitMeta for Option<T>
     where
-        T: HasWitMetadata,
+        T: HasWitMeta,
     {
-        const IDENT: &'static str = "Option";
-
-        const WIT: &'static WitMeta = &WitMeta::Option(T::WIT);
+        const REF: WitMeta = WitMeta::Option(&T::REF);
     }
 
-    impl<T> HasWitMetadata for Vec<T>
+    impl<T> HasWitMeta for Vec<T>
     where
-        T: HasWitMetadata,
+        T: HasWitMeta,
     {
-        const IDENT: &'static str = "List";
-
-        const WIT: &'static WitMeta = &WitMeta::List(T::WIT);
+        const REF: WitMeta = WitMeta::List(&T::REF);
     }
 
     macro_rules! impl_has_wit_metadata_for_tuple {
         ($($ty:ident),*) => {
-            impl<$($ty),*> HasWitMetadata for ($($ty,)*)
+            impl<$($ty),*> HasWitMeta for ($($ty,)*)
             where
-                $($ty: HasWitMetadata),*
+                $($ty: HasWitMeta),*
             {
-                const IDENT: &'static str = "Tuple";
-                const WIT: &'static WitMeta = &WitMeta::Tuple(TupleMeta { items: &[$($ty::WIT),*]});
+                const REF: WitMeta = WitMeta::Tuple(TupleMeta { items: &[$(&$ty::REF),*]});
             }
         };
     }
