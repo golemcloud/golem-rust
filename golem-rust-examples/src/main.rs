@@ -80,18 +80,10 @@ fn get_address() -> Address {
 fn test_iter() {
     ALL_WIT_TYPES_FOR_GOLEM.iter().for_each(|f| {
         let wit_meta = f();
-        use WitMeta::*;
-
-        // let to_print = match wit_meta {
-        //     Record(struct_meta) => println!("STRUCT {}", struct_meta.name.0),
-        //     Function(function_meta) => println!("FUNCTION {}", function_meta.name.0),
-        //     _ => println!("todo implement"),
-        // };
 
         let wit_string = into_wit::into_wit(wit_meta).unwrap();
 
-        println!("{wit_string}");
-        println!("\n")
+        println!("{wit_string}\n");
     });
 }
 
