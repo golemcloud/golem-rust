@@ -45,47 +45,13 @@ pub struct BidderId {
     pub verified: bool,
 }
 
-// impl HasWitMetadata for IpAddrEmpty {
-//     const IDENT: &'static str = "IpAddrEmpty";
-
-//     const WIT: &'static WitMeta = &WitMeta::Enum(EnumMeta {
-//         name: Ident("IpAddrEmpty"),
-//         variants: &[ Ident("V4"), Ident("V6")],
-//     });
-// }
-
-// impl HasWitMetadata for BidderId {
-//     const IDENT: &'static str = "BidderId";
-
-//     const WIT: &'static WitMeta = &WitMeta::Record(RecordMeta {
-//         name: Ident("BidderId"),
-//         fields: &[
-//             ("bidder_id", Result::<IpAddrEmpty, String>::WIT),
-//             ("verified", bool::WIT),
-//         ]
-//     });
-// }
-// struct CreateBidder {}
-
-// impl HasWitMetadata for CreateBidder {
-//     const IDENT: &'static str = "create_bidder";
-
-//     const WIT: &'static WitMeta = &WitMeta::Function(FunctionMeta {
-//         name: Ident("create_bidder"),
-//         args: &[("full_name", String::WIT), ("address", Vec::<String>::WIT), ("age", Option::<u16>::WIT)],
-//         result: &WitMeta::Tuple(&[BidderId::WIT, f32::WIT]),
-//     });
-// }
-
 #[golem()]
 fn create_bidder(full_name: String, address: Vec<String>, age: Option<u16>) -> BidderId {
     BidderId {
         bidder_id: Result::Err("hello".to_owned()),
-        verified: false
+        verified: false,
     }
 }
-
-
 
 #[golem()]
 fn get_address() -> Address {

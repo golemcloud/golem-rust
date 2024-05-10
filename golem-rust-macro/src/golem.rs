@@ -227,6 +227,7 @@ fn make_distributed_slice(ident: &IdentString) -> proc_macro2::TokenStream {
 // Option<T> -> Option::<T>::WIT
 // Vec<T> -> Vec::<T>::WIT
 // Result<Option<T>, E> -> Result::<Option::<T>, E>::WIT
+// (T, U) -> (T, U)::WIT
 fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> syn::Result<proc_macro2::TokenStream> {
     match ty {
         syn::Type::Path(syn::TypePath { path, qself: None }) => {
@@ -272,70 +273,83 @@ fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> syn::Result<proc_macro2
                 }
             }
         }
+        syn::Type::Tuple(syn::TypeTuple { elems, .. }) => {
+            let generic_types = elems
+                .iter()
+                .map(|ty| make_type_wit_const(ty, false))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            if is_root {
+                Ok(quote! {
+                    (#(#generic_types),*)::WIT
+                })
+            } else {
+                Ok(quote! {
+                    (#(#generic_types),*)
+                })
+            }
+        }
+        unsupported @ syn::Type::Reference(_) => Err(syn::Error::new(
+            unsupported.span(),
+            format!("Unsupported type: References are not allowed. All data must be owned"),
+        )),
         unsupported => Err(syn::Error::new(
             unsupported.span(),
-            format!("Unsupported type: {:#?}", unsupported),
+            format!("Unsupported type"),
         )),
     }
 }
 
 pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
     //get_address
-    let function_name = ast.sig.ident.clone();
+    let function_name = IdentString::new(ast.sig.ident.clone());
 
     //GetAddress
-    let struct_name = syn::Ident::new(
+    let struct_name = IdentString::new(syn::Ident::new(
         &(function_name.clone().to_string().to_pascal_case()),
         function_name.span(),
-    );
+    ));
 
     let new_struct = quote! {
         struct #struct_name {}
     };
 
-    let mut uppercase_name = "FUN".to_owned();
-    uppercase_name.push_str(&(struct_name.to_string().to_uppercase()));
-
-    //FUN_GET_ADDRESS
-    let uppercase_name_ident = syn::Ident::new(&uppercase_name, struct_name.span());
-
-    let distributed_slice = quote! {
-        #[distributed_slice(ALL_WIT_TYPES_FOR_GOLEM)]
-        static #uppercase_name_ident: fn() -> &'static WitMeta = || #struct_name::WIT;
-    };
-
     // "get_address"
-    let function_name_string = function_name.to_string();
+    let function_name_string = function_name.as_str();
 
     let output = ast.sig.output.clone();
 
     let output_type = (match output.clone() {
-        ReturnType::Default => syn::Result::Err(syn::Error::new(output.span(),"Function needs to have explciit return type")),
-        ReturnType::Type(_, box_type) => {
-            make_type_wit_const(&(*box_type), true)
-        }
+        ReturnType::Default => syn::Result::Err(syn::Error::new(
+            output.span(),
+            "Function needs to have explicit return type",
+        )),
+        ReturnType::Type(_, box_type) => make_type_wit_const(&(*box_type), true),
     })?;
 
-    let all_input_args = ast.sig.inputs.clone().into_iter().map(|tpe| {
-        match tpe {
-            FnArg::Receiver(_) => syn::Result::Err(syn::Error::new(output.clone().span(),"Function needs to have explciit return type")),
-            FnArg::Typed(pat_type) => {
-                match (*pat_type.pat) {
-                    syn::Pat::Ident(i) => {
-                        let args_name = i.ident.to_string();
-                        make_type_wit_const(&(*pat_type.ty), true)
-                            .map(|ts| {
-                                quote! {
-                                    (#args_name, #ts)
-                                }
-                            })
-                    },
-                    _ => syn::Result::Err(syn::Error::new(output.span(),"Unexpected error")),
+    let all_input_args = ast
+        .sig
+        .inputs
+        .clone()
+        .into_iter()
+        .map(|tpe| match tpe {
+            FnArg::Receiver(_) => syn::Result::Err(syn::Error::new(
+                output.clone().span(),
+                "Function needs to have explicit return type",
+            )),
+            FnArg::Typed(pat_type) => match *pat_type.pat {
+                syn::Pat::Ident(i) => {
+                    let args_name = i.ident.to_string();
+                    make_type_wit_const(&(*pat_type.ty), true).map(|ts| {
+                        quote! {
+                            (#args_name, #ts)
+                        }
+                    })
                 }
-                
-            }
-        }
-    }).collect::<::syn::Result<Vec<_>>>()?;
+                _ => syn::Result::Err(syn::Error::new(output.span(), "Unexpected pattern")),
+            },
+        })
+        .collect::<::syn::Result<Vec<_>>>()?;
 
     let fun_args = quote! {
         &[#(#all_input_args),*]
@@ -353,6 +367,8 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
         }
     };
 
+    let distributed_slice = make_distributed_slice(&struct_name);
+
     Ok(quote!(
         #new_struct
         #into_wit_impl
@@ -361,7 +377,88 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
     ))
 }
 
-#[test]
-fn test_convert() {
-    println!("RESULT ");
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+    use std::panic::Location;
+    use syn::parse_quote;
+
+    #[track_caller]
+    fn test_make_type_wit_const(ty: syn::Type, expected: proc_macro2::TokenStream, is_root: bool) {
+        let location = Location::caller();
+        assert_make_type_wit_const(ty, expected, is_root, &location);
+        let result = make_type_wit_const(&ty, is_root).unwrap();
+        let result_str = result.to_string();
+        let expected_str = expected.to_string();
+        if result_str != expected_str {
+            panic!(
+                "Assertion failed at {}:{}\nExpected: {}\nActual: {}",
+                location.file(),
+                location.line(),
+                expected_str,
+                result_str
+            );
+        }
+    }
+
+    #[test]
+    fn test_basic_type() {
+        test_make_type_wit_const(parse_quote!(String), quote!(String::WIT), true);
+    }
+
+    #[test]
+    fn test_generic_type() {
+        test_make_type_wit_const(
+            parse_quote!(Option<String>),
+            quote!(Option::<String>::WIT),
+            true,
+        );
+    }
+
+    #[test]
+    fn test_nested_generic_type() {
+        test_make_type_wit_const(
+            parse_quote!(Result<Option<String>, String>),
+            quote!(Result::<Option::<String>, String>::WIT),
+            true,
+        );
+    }
+
+    #[test]
+    fn test_tuple_type() {
+        test_make_type_wit_const(
+            parse_quote!((String, u32)),
+            quote!((String, u32)::WIT),
+            true,
+        );
+    }
+
+    #[test]
+    fn test_nested_tuple_type() {
+        test_make_type_wit_const(
+            parse_quote!(Result<(String, u32), String>),
+            quote!(Result::<(String, u32), String>::WIT),
+            true,
+        );
+    }
+
+    #[test]
+    fn test_non_root_type() {
+        test_make_type_wit_const(parse_quote!(String), quote!(String), false);
+    }
+
+    #[test]
+    fn test_non_root_generic_type() {
+        test_make_type_wit_const(
+            parse_quote!(Option<String>),
+            quote!(Option::<String>),
+            false,
+        );
+    }
+
+    #[test]
+    fn test_non_root_tuple_type() {
+        test_make_type_wit_const(parse_quote!((String, u32)), quote!((String, u32)), false);
+    }
 }

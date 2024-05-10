@@ -75,9 +75,22 @@ pub fn golem(_attr: TokenStream, root_item: TokenStream) -> TokenStream {
     let item_tokens: proc_macro2::TokenStream = root_item.clone().into();
 
     (if let Ok(derive_input) = syn::parse::<syn::DeriveInput>(root_item.clone()) {
-        golem::structure::expand(&item_tokens, &derive_input)
-            .or_else(|_| golem::enumeration::expand(&item_tokens, &derive_input))
-            .or_else(|_| golem::variant::expand(&item_tokens, &derive_input))
+        match &derive_input.data {
+            syn::Data::Struct(_) => golem::structure::expand(&item_tokens, &derive_input),
+            syn::Data::Enum(_) => {
+                // Enum can be expanded as enumeration or variant
+                golem::enumeration::expand(&item_tokens, &derive_input)
+                    .or_else(|_| golem::variant::expand(&item_tokens, &derive_input))
+            }
+            syn::Data::Union(_) => {
+                return syn::Error::new(
+                    derive_input.ident.span(),
+                    "golem macro does not support unions",
+                )
+                .into_compile_error()
+                .into();
+            }
+        }
     } else {
         syn::parse::<syn::ItemFn>(root_item.clone())
             .and_then(|ast| golem::implement_global_function(ast))
