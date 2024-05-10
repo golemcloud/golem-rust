@@ -93,7 +93,6 @@ mod into_wit {
         PrimitiveMeta,
         WitMeta::{self, *},
     };
-    use heck::ToKebabCase;
     use std::io::Write;
 
     pub fn into_wit(meta: &WitMeta) -> Res<String> {
@@ -262,8 +261,23 @@ mod into_wit {
 
         #[inline]
         fn write_kebab(&mut self, s: &str) -> Res<()> {
-            // TODO: Don't collect to string, and write to buffer directly
-            self.write_str(&s.to_kebab_case())
+            let mut prev_char_uppercase = false;
+
+            for (index, c) in s.char_indices() {
+                if c.is_uppercase() {
+                    if index > 0 && !prev_char_uppercase {
+                        self.writer.write_all(b"-")?;
+                    }
+                    let lowered = c.to_lowercase().to_string();
+                    self.writer.write_all(lowered.as_bytes())?;
+                    prev_char_uppercase = true;
+                } else {
+                    self.writer.write_all(&[c as u8])?;
+                    prev_char_uppercase = false;
+                }
+            }
+
+            Ok(())
         }
 
         #[inline]

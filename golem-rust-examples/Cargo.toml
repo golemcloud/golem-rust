@@ -7,5 +7,4 @@ edition = "2021"
 
 [dependencies]
 golem-rust = { path = "../golem-rust" }
-heck = "0.5.0"
 linkme = "0.3.26"
