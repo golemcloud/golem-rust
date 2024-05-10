@@ -1,6 +1,6 @@
 use darling::{ast, util::IdentString, FromDeriveInput};
 use heck::ToPascalCase;
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{spanned::Spanned, FnArg, ReturnType};
 
@@ -28,7 +28,7 @@ pub mod structure {
                     .as_ref()
                     .expect("Field to have name")
                     .to_string();
-                let type_wit_const = make_type_wit_const(&field.ty, true)?;
+                let type_wit_const = make_type_wit_const(&field.ty)?;
 
                 Ok(quote! {
                     (#field_name, #type_wit_const)
@@ -152,7 +152,7 @@ pub mod variant {
                     .fields
                     .iter()
                     .map(|field| {
-                        let type_wit_const = make_type_wit_const(&field.ty, true);
+                        let type_wit_const = make_type_wit_const(&field.ty);
                         type_wit_const
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -209,10 +209,10 @@ pub mod variant {
     }
 }
 
-fn make_distributed_slice(ident: &IdentString) -> proc_macro2::TokenStream {
+fn make_distributed_slice(ident: &IdentString) -> TokenStream {
     let slice_ident = syn::Ident::new(
         &format!("{}_WIT", ident.as_str().to_ascii_uppercase()),
-        proc_macro2::Span::call_site(),
+        Span::call_site(),
     );
 
     let ident = ident.as_ident();
@@ -228,76 +228,86 @@ fn make_distributed_slice(ident: &IdentString) -> proc_macro2::TokenStream {
 // Vec<T> -> Vec::<T>::WIT
 // Result<Option<T>, E> -> Result::<Option::<T>, E>::WIT
 // (T, U) -> (T, U)::WIT
-fn make_type_wit_const(ty: &syn::Type, is_root: bool) -> syn::Result<proc_macro2::TokenStream> {
-    match ty {
-        syn::Type::Path(syn::TypePath { path, qself: None }) => {
-            let ty = &path.segments.last().expect("Paths to be non-empty").ident;
+// std::result::Result<T, E> -> std::result::Result::<T, E>::WIT
+fn make_type_wit_const(ty: &syn::Type) -> syn::Result<TokenStream> {
+    fn go(ty: &syn::Type, is_root: bool) -> syn::Result<TokenStream> {
+        match ty {
+            syn::Type::Path(syn::TypePath { path, qself: None }) => {
+                let generic_args = match &path.segments.last().unwrap().arguments {
+                    syn::PathArguments::AngleBracketed(args) => Some(&args.args),
+                    _ => None,
+                };
 
-            let generic_args = match &path.segments.last().unwrap().arguments {
-                syn::PathArguments::AngleBracketed(args) => {
-                    Some(args.args.iter().collect::<Vec<_>>())
-                }
-                _ => None,
-            };
-
-            if let Some(generic_args) = generic_args {
-                let generic_types = generic_args
+                let path = path
+                    .segments
                     .iter()
-                    .map(|arg| match arg {
-                        syn::GenericArgument::Type(ty) => make_type_wit_const(ty, false),
-                        s => Err(syn::Error::new(
-                            s.span(),
-                            format!("Unsupported generic argument: {:#?}", s),
-                        )),
-                    })
+                    .map(|segment| segment.ident.to_string())
+                    .collect::<Vec<_>>()
+                    .join("::");
+
+                let path: syn::Path = syn::parse_str(&path).unwrap();
+
+                if let Some(generic_args) = generic_args {
+                    let generic_types = generic_args
+                        .iter()
+                        .map(|arg| match arg {
+                            syn::GenericArgument::Type(ty) => go(ty, false),
+                            s => Err(syn::Error::new(
+                                s.span(),
+                                format!("Unsupported generic argument: {:#?}", s),
+                            )),
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    if is_root {
+                        Ok(quote! {
+                            #path::<#(#generic_types),*>::WIT
+                        })
+                    } else {
+                        Ok(quote! {
+                            #path::<#(#generic_types),*>
+                        })
+                    }
+                } else {
+                    if is_root {
+                        Ok(quote! {
+                            #path::WIT
+                        })
+                    } else {
+                        Ok(quote! {
+                            #path
+                        })
+                    }
+                }
+            }
+            syn::Type::Tuple(syn::TypeTuple { elems, .. }) => {
+                let generic_types = elems
+                    .iter()
+                    .map(|ty| go(ty, false))
                     .collect::<Result<Vec<_>, _>>()?;
 
                 if is_root {
                     Ok(quote! {
-                        #ty::<#(#generic_types),*>::WIT
+                        (#(#generic_types),*)::WIT
                     })
                 } else {
                     Ok(quote! {
-                        #ty::<#(#generic_types),*>
-                    })
-                }
-            } else {
-                if is_root {
-                    Ok(quote! {
-                        #ty::WIT
-                    })
-                } else {
-                    Ok(quote! {
-                        #ty
+                        (#(#generic_types),*)
                     })
                 }
             }
+            unsupported @ syn::Type::Reference(_) => Err(syn::Error::new(
+                unsupported.span(),
+                format!("Unsupported type: References are not allowed. All data must be owned"),
+            )),
+            unsupported => Err(syn::Error::new(
+                unsupported.span(),
+                format!("Unsupported type"),
+            )),
         }
-        syn::Type::Tuple(syn::TypeTuple { elems, .. }) => {
-            let generic_types = elems
-                .iter()
-                .map(|ty| make_type_wit_const(ty, false))
-                .collect::<Result<Vec<_>, _>>()?;
-
-            if is_root {
-                Ok(quote! {
-                    (#(#generic_types),*)::WIT
-                })
-            } else {
-                Ok(quote! {
-                    (#(#generic_types),*)
-                })
-            }
-        }
-        unsupported @ syn::Type::Reference(_) => Err(syn::Error::new(
-            unsupported.span(),
-            format!("Unsupported type: References are not allowed. All data must be owned"),
-        )),
-        unsupported => Err(syn::Error::new(
-            unsupported.span(),
-            format!("Unsupported type"),
-        )),
     }
+
+    go(ty, true)
 }
 
 pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
@@ -324,7 +334,7 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
             output.span(),
             "Function needs to have explicit return type",
         )),
-        ReturnType::Type(_, box_type) => make_type_wit_const(&(*box_type), true),
+        ReturnType::Type(_, box_type) => make_type_wit_const(&(*box_type)),
     })?;
 
     let all_input_args = ast
@@ -340,7 +350,7 @@ pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
             FnArg::Typed(pat_type) => match *pat_type.pat {
                 syn::Pat::Ident(i) => {
                     let args_name = i.ident.to_string();
-                    make_type_wit_const(&(*pat_type.ty), true).map(|ts| {
+                    make_type_wit_const(&(*pat_type.ty)).map(|ts| {
                         quote! {
                             (#args_name, #ts)
                         }
@@ -385,10 +395,9 @@ mod tests {
     use syn::parse_quote;
 
     #[track_caller]
-    fn test_make_type_wit_const(ty: syn::Type, expected: proc_macro2::TokenStream, is_root: bool) {
+    fn test_make_type_wit_const(ty: syn::Type, expected: proc_macro2::TokenStream) {
         let location = Location::caller();
-        assert_make_type_wit_const(ty, expected, is_root, &location);
-        let result = make_type_wit_const(&ty, is_root).unwrap();
+        let result = make_type_wit_const(&ty).unwrap();
         let result_str = result.to_string();
         let expected_str = expected.to_string();
         if result_str != expected_str {
@@ -404,16 +413,12 @@ mod tests {
 
     #[test]
     fn test_basic_type() {
-        test_make_type_wit_const(parse_quote!(String), quote!(String::WIT), true);
+        test_make_type_wit_const(parse_quote!(String), quote!(String::WIT));
     }
 
     #[test]
     fn test_generic_type() {
-        test_make_type_wit_const(
-            parse_quote!(Option<String>),
-            quote!(Option::<String>::WIT),
-            true,
-        );
+        test_make_type_wit_const(parse_quote!(Option<String>), quote!(Option::<String>::WIT));
     }
 
     #[test]
@@ -421,17 +426,12 @@ mod tests {
         test_make_type_wit_const(
             parse_quote!(Result<Option<String>, String>),
             quote!(Result::<Option::<String>, String>::WIT),
-            true,
         );
     }
 
     #[test]
     fn test_tuple_type() {
-        test_make_type_wit_const(
-            parse_quote!((String, u32)),
-            quote!((String, u32)::WIT),
-            true,
-        );
+        test_make_type_wit_const(parse_quote!((String, u32)), quote!((String, u32)::WIT));
     }
 
     #[test]
@@ -439,26 +439,14 @@ mod tests {
         test_make_type_wit_const(
             parse_quote!(Result<(String, u32), String>),
             quote!(Result::<(String, u32), String>::WIT),
-            true,
         );
     }
 
     #[test]
-    fn test_non_root_type() {
-        test_make_type_wit_const(parse_quote!(String), quote!(String), false);
-    }
-
-    #[test]
-    fn test_non_root_generic_type() {
+    fn test_full_path() {
         test_make_type_wit_const(
-            parse_quote!(Option<String>),
-            quote!(Option::<String>),
-            false,
+            parse_quote!(std::result::Result<(std::option::Option<String>, u32), String>),
+            quote!(std::result::Result::<(std::option::Option::<String>, u32), String>::WIT),
         );
-    }
-
-    #[test]
-    fn test_non_root_tuple_type() {
-        test_make_type_wit_const(parse_quote!((String, u32)), quote!((String, u32)), false);
     }
 }
