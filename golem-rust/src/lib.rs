@@ -19,10 +19,9 @@ pub mod bindings;
 #[cfg(feature = "uuid")]
 mod uuid;
 
-mod macroutils;
-
 mod transaction;
 mod tuple;
+mod wit;
 
 use bindings::golem::api::host::*;
 
@@ -31,8 +30,8 @@ pub use bindings::golem::api::host::PersistenceLevel;
 pub use bindings::golem::api::host::RetryPolicy;
 
 pub use golem_rust_macro::golem;
-pub use macroutils::*;
 pub use transaction::*;
+pub use wit::*;
 
 pub struct PersistenceLevelGuard {
     original_level: PersistenceLevel,

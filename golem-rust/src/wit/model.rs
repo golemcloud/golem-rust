@@ -108,14 +108,6 @@ pub struct TupleMeta {
     pub items: &'static [WitMetaRef],
 }
 
-#[macro_export]
-macro_rules! golem_gen {
-    () => {
-        #[distributed_slice]
-        pub static ALL_WIT_TYPES_FOR_GOLEM: [fn() -> WitExport];
-    };
-}
-
 mod primitives {
     use crate::generate_for_tuples;
 

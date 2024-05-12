@@ -74,7 +74,7 @@ pub fn golem_operation(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn golem(_attr: TokenStream, root_item: TokenStream) -> TokenStream {
     let item_tokens: proc_macro2::TokenStream = root_item.clone().into();
 
-    (if let Ok(derive_input) = syn::parse::<syn::DeriveInput>(root_item.clone()) {
+    let result = if let Ok(derive_input) = syn::parse::<syn::DeriveInput>(root_item.clone()) {
         match &derive_input.data {
             syn::Data::Struct(_) => golem::structure::expand(&item_tokens, &derive_input),
             syn::Data::Enum(_) => {
@@ -92,23 +92,8 @@ pub fn golem(_attr: TokenStream, root_item: TokenStream) -> TokenStream {
             }
         }
     } else {
-        syn::parse::<syn::ItemFn>(root_item.clone()).and_then(golem::implement_global_function)
-    })
-    .unwrap_or_else(syn::Error::into_compile_error)
-    .into()
+        syn::parse::<syn::ItemFn>(root_item.clone()).and_then(golem::function::expand)
+    };
 
-    // let type_tokens = parse::<ItemType>(item.clone()).and_then(|mut t| {
-
-    //     Ok(t.to_token_stream())
-    // });
-
-    // let enum_tokens = parse::<ItemEnum>(item.clone()).and_then(|mut t| {
-
-    //     Ok(t.to_token_stream())
-    // });
-
-    // let struct_impl = parse::<ItemImpl>(item.clone()).and_then(|mut t| {
-
-    //     Ok(t.to_token_stream())
-    // });
+    result.unwrap_or_else(syn::Error::into_compile_error).into()
 }

@@ -236,6 +236,84 @@ pub mod variant {
     }
 }
 
+pub mod function {
+    use super::*;
+
+    pub fn expand(ast: syn::ItemFn) -> syn::Result<TokenStream> {
+        //get_address
+        let function_name = IdentString::new(ast.sig.ident.clone());
+
+        //GetAddress
+        let struct_name = IdentString::new(syn::Ident::new(
+            &(function_name.to_string().to_pascal_case()),
+            function_name.span(),
+        ));
+
+        let new_struct = quote! {
+            struct #struct_name {}
+        };
+
+        // "get_address"
+        let function_name_string = function_name.as_str();
+
+        let output_type = (match &ast.sig.output {
+            ReturnType::Default => syn::Result::Err(syn::Error::new(
+                ast.sig.output.span(),
+                "Function needs to have explicit return type",
+            )),
+            ReturnType::Type(_, box_type) => type_wit_ref(box_type),
+        })?;
+
+        let all_input_args = ast
+            .sig
+            .inputs
+            .iter()
+            .map(|tpe| match tpe {
+                FnArg::Receiver(_) => syn::Result::Err(syn::Error::new(
+                    tpe.span(),
+                    "Function needs to have explicit return type",
+                )),
+                FnArg::Typed(pat_type) => match &*pat_type.pat {
+                    syn::Pat::Ident(i) => {
+                        let args_name = i.ident.to_string();
+                        type_wit_ref(&pat_type.ty).map(|ts| {
+                            quote! {
+                                    (#args_name, &#ts)
+                            }
+                        })
+                    }
+                    _ => syn::Result::Err(syn::Error::new(pat_type.span(), "Unexpected pattern")),
+                },
+            })
+            .collect::<::syn::Result<Vec<_>>>()?;
+
+        let fun_args = quote! {
+            &[#(#all_input_args),*]
+        };
+
+        let into_wit_impl = quote! {
+            impl HasWitExport for #struct_name {
+                const IDENT: &'static str = #function_name_string;
+
+                const WIT: WitExport = WitExport::Function(FunctionMeta {
+                    name: Ident(#function_name_string),
+                    args: #fun_args,
+                    result: &#output_type,
+                });
+            }
+        };
+
+        let distributed_slice = make_distributed_slice(&struct_name);
+
+        Ok(quote!(
+            #new_struct
+            #into_wit_impl
+            #distributed_slice
+            #ast
+        ))
+    }
+}
+
 fn make_distributed_slice(ident: &IdentString) -> TokenStream {
     let slice_ident = syn::Ident::new(
         &format!("{}_WIT", ident.as_str().to_ascii_uppercase()),
@@ -315,80 +393,6 @@ fn type_wit_ref(ty: &syn::Type) -> syn::Result<TokenStream> {
     Ok(quote! {
         #result::REF
     })
-}
-
-pub fn implement_global_function(ast: syn::ItemFn) -> syn::Result<TokenStream> {
-    //get_address
-    let function_name = IdentString::new(ast.sig.ident.clone());
-
-    //GetAddress
-    let struct_name = IdentString::new(syn::Ident::new(
-        &(function_name.clone().to_string().to_pascal_case()),
-        function_name.span(),
-    ));
-
-    let new_struct = quote! {
-        struct #struct_name {}
-    };
-
-    // "get_address"
-    let function_name_string = function_name.as_str();
-
-    let output_type = (match &ast.sig.output {
-        ReturnType::Default => syn::Result::Err(syn::Error::new(
-            ast.sig.output.span(),
-            "Function needs to have explicit return type",
-        )),
-        ReturnType::Type(_, box_type) => type_wit_ref(box_type),
-    })?;
-
-    let all_input_args = ast
-        .sig
-        .inputs
-        .iter()
-        .map(|tpe| match tpe {
-            FnArg::Receiver(_) => syn::Result::Err(syn::Error::new(
-                tpe.span(),
-                "Function needs to have explicit return type",
-            )),
-            FnArg::Typed(pat_type) => match &*pat_type.pat {
-                syn::Pat::Ident(i) => {
-                    let args_name = i.ident.to_string();
-                    type_wit_ref(&pat_type.ty).map(|ts| {
-                        quote! {
-                                (#args_name, &#ts)
-                        }
-                    })
-                }
-                _ => syn::Result::Err(syn::Error::new(pat_type.span(), "Unexpected pattern")),
-            },
-        })
-        .collect::<::syn::Result<Vec<_>>>()?;
-
-    let fun_args = quote! {
-        &[#(#all_input_args),*]
-    };
-
-    let into_wit_impl = quote! {
-        impl HasWitExport for #struct_name {
-            const IDENT: &'static str = #function_name_string;
-
-            const WIT: WitExport = WitExport::Function(FunctionMeta {
-                name: Ident(#function_name_string),
-                args: #fun_args,
-                result: &#output_type,
-            });
-        }
-    };
-
-    let distributed_slice = make_distributed_slice(&struct_name);
-
-    Ok(quote!(
-        #new_struct
-        #into_wit_impl
-        #distributed_slice
-        #ast
-    ))
 }
 
 #[cfg(test)]
