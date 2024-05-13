@@ -18,6 +18,18 @@ pub enum WitExport {
     Function(FunctionMeta),
 }
 
+impl WitExport {
+    pub fn name(&self) -> &'static str {
+        match self {
+            WitExport::Record(meta) => &meta.name.0,
+            WitExport::Variant(meta) => &meta.name.0,
+            WitExport::Enum(meta) => &meta.name.0,
+            WitExport::Flag(meta) => &meta.name.0,
+            WitExport::Function(meta) => &meta.name.0,
+        }
+    }
+}
+
 /**
  * AST TYPES
  */
@@ -100,7 +112,7 @@ pub struct VariantMeta {
 #[derive(Debug)]
 pub struct VariantOption {
     pub name: Ident,
-    pub fields: &'static [WitMetaRef],
+    pub field: Option<WitMetaRef>,
 }
 
 #[derive(Debug)]

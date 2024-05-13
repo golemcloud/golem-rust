@@ -1,9 +1,6 @@
 use golem_rust::*;
-use linkme::distributed_slice;
 
 fn main() {}
-
-golem_gen!();
 
 // disable unused code for now
 #[allow(dead_code)]
@@ -35,7 +32,7 @@ mod trial {
 
     #[golem()]
     enum VariantTest {
-        V1(String, u32),
+        V1(String),
         V2(Vec<String>),
     }
 
@@ -67,17 +64,52 @@ mod trial {
             color: Color::Blue,
         }
     }
+    include!("../.golem/bindgen.rs");
 }
 
 #[test]
 fn test_iter() {
-    let all_wit = ALL_WIT_TYPES_FOR_GOLEM
-        .iter()
-        .map(|f| f())
-        .collect::<Vec<_>>();
+    fn write_to_file(
+        path: impl AsRef<std::path::Path>,
+        content: &str,
+    ) -> Result<(), std::io::Error> {
+        use std::io::Write;
+        if let Some(parent) = path.as_ref().parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+        let mut file = std::fs::File::create(path.as_ref())?;
+        file.write_all(content.as_bytes())?;
+        file.flush()?;
+        Ok(())
+    }
 
-    println!(
-        "{}",
-        export_wit_interface("api", "golem-world", all_wit.as_slice()).unwrap()
+    let all_wit = get_all_wit_types();
+
+    let wit = export_wit_interface(
+        &all_wit,
+        WitOptions {
+            interface: "api",
+            world: "test-worker",
+            package_namespace: "golem",
+            package_name: "test",
+            version: None,
+        },
+    )
+    .unwrap();
+
+    write_to_file(".golem/api.wit", &wit).unwrap();
+
+    let wit_bindgen = format!(
+        r#"
+wit_bindgen::generate!({{
+    inline: "
+{wit}
+",
+}});
+"#
     );
+
+    write_to_file(".golem/bindgen.rs", &wit_bindgen).unwrap();
 }

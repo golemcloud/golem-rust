@@ -173,16 +173,26 @@ pub mod variant {
                     .map(|field| type_wit_ref(&field.ty))
                     .collect::<Result<Vec<_>, _>>()?;
 
-                let fields_quoted = fields.iter().map(|field| {
-                    quote! { &#field }
-                });
+                let field = match fields.as_slice() {
+                    [] => Ok(quote! {
+                        ::golem_rust::VariantOption {
+                            name: ::golem_rust::Ident(#variant_name),
+                            field: None,
+                        }
+                    }),
+                    [field] => Ok(quote! {
+                        ::golem_rust::VariantOption {
+                            name: ::golem_rust::Ident(#variant_name),
+                            field: Some(&#field),
+                        }
+                    }),
+                    _ => Err(syn::Error::new(
+                        variant.ident.span(),
+                        "Variants with more than one field are not supported",
+                    )),
+                }?;
 
-                Ok(quote! {
-                    ::golem_rust::VariantOption {
-                        name: ::golem_rust::Ident(#variant_name),
-                        fields: &[ #(#fields_quoted),* ],
-                    }
-                })
+                Ok(field)
             })
             .collect::<Result<Vec<TokenStream>, syn::Error>>()?;
 
@@ -323,7 +333,7 @@ fn make_distributed_slice(ident: &IdentString) -> TokenStream {
     let ident = ident.as_ident();
 
     quote! {
-        #[distributed_slice(crate::ALL_WIT_TYPES_FOR_GOLEM)]
+        #[golem_rust::distributed_slice(crate::ALL_WIT_TYPES_FOR_GOLEM)]
         static #slice_ident: fn() -> ::golem_rust::WitExport = || #ident::WIT;
     }
 }

@@ -1,10 +1,17 @@
 use crate::{PrimitiveMeta, WitExport, WitMeta};
 use std::io::Write;
 
+pub struct WitOptions<'a> {
+    pub interface: &'a str,
+    pub world: &'a str,
+    pub package_namespace: &'a str,
+    pub package_name: &'a str,
+    pub version: Option<&'a str>,
+}
+
 pub fn export_wit_interface(
-    interface_name: &str,
-    world_name: &str,
     exports: impl AsRef<[WitExport]>,
+    wit_options: WitOptions,
 ) -> Res<String> {
     let mut writer = Vec::new();
     let mut serializer = WitSerializer::new(&mut writer, 1);
@@ -16,8 +23,22 @@ pub fn export_wit_interface(
 
     let exports = unsafe { String::from_utf8_unchecked(writer) };
 
+    let package = if let Some(version) = wit_options.version {
+        format!(
+            "package {}:{}:{};",
+            wit_options.package_namespace, wit_options.package_name, version
+        )
+    } else {
+        format!(
+            "package {}:{};",
+            wit_options.package_namespace, wit_options.package_name
+        )
+    };
+
     Ok(format!(
-        "interface {interface_name} {{\n{exports}\n}}\n\nworld {world_name} {{\n   export {interface_name};\n}}",
+        "{package}\ninterface {interface} {{\n{exports}\n}}\n\nworld {world} {{\n   export {interface};\n}}",
+        interface = wit_options.interface,
+        world = wit_options.world,
     ))
 }
 
@@ -60,7 +81,7 @@ impl<W: Write> WitSerializer<W> {
         use crate::WitExport::*;
         match meta {
             Record(meta) => {
-                self.write_indentation()?;
+                self.write_indent()?;
                 self.write_str("record ")?;
                 self.write_kebab(&meta.name.0)?;
                 self.write_str(" {")?;
@@ -68,11 +89,11 @@ impl<W: Write> WitSerializer<W> {
                 self.new_line()?;
 
                 self.interleave(
-                    Self::write_indentation,
-                    "\n",
+                    Self::write_indent,
+                    ",\n",
                     meta.fields.iter().map(|(name, wit)| {
                         |w: &mut Self| {
-                            w.write_str(name.as_ref())?;
+                            w.write_kebab(name.as_ref())?;
                             w.write_str(": ")?;
                             w.wit_ref(wit)
                         }
@@ -83,7 +104,7 @@ impl<W: Write> WitSerializer<W> {
                 self.write_indent_line("}")?;
             }
             Variant(meta) => {
-                self.write_indentation()?;
+                self.write_indent()?;
                 self.write_str("variant ")?;
                 self.write_kebab(&meta.name.0)?;
                 self.write_str(" {")?;
@@ -91,24 +112,18 @@ impl<W: Write> WitSerializer<W> {
                 self.inc_indent();
 
                 self.interleave(
-                    Self::write_indentation,
+                    Self::write_indent,
                     ",\n",
                     meta.fields.iter().map(|option| {
                         |w: &mut Self| {
                             w.write_kebab(&option.name.0)?;
-                            if option.fields.is_empty() {
+                            if let Some(field) = option.field {
+                                w.write_str("(")?;
+                                w.wit_ref(field)?;
+                                w.write_str(")")?;
                                 Ok(())
                             } else {
-                                w.write_str("(")?;
-                                w.interleave(
-                                    |_| Ok(()),
-                                    ", ",
-                                    option
-                                        .fields
-                                        .iter()
-                                        .map(|field| |w: &mut Self| w.wit_ref(field)),
-                                )?;
-                                w.write_str(")")
+                                Ok(())
                             }
                         }
                     }),
@@ -119,7 +134,7 @@ impl<W: Write> WitSerializer<W> {
                 self.write_indent_line("}")?;
             }
             Enum(meta) => {
-                self.write_indentation()?;
+                self.write_indent()?;
                 self.write_str("enum ")?;
                 self.write_kebab(&meta.name.0)?;
                 self.write_str(" {")?;
@@ -127,7 +142,7 @@ impl<W: Write> WitSerializer<W> {
                 self.inc_indent();
 
                 self.interleave(
-                    Self::write_indentation,
+                    Self::write_indent,
                     ",\n",
                     meta.variants
                         .iter()
@@ -138,7 +153,7 @@ impl<W: Write> WitSerializer<W> {
                 self.write_indent_line("}")?;
             }
             Function(meta) => {
-                self.write_indentation()?;
+                self.write_indent()?;
                 self.write_kebab(&meta.name.0)?;
                 self.write_str(": func(")?;
                 self.interleave(
@@ -154,6 +169,7 @@ impl<W: Write> WitSerializer<W> {
                 )?;
                 self.write_str(") -> ")?;
                 self.wit_ref(&meta.result)?;
+                self.write_str(";")?;
                 self.new_line()?;
             }
             Flag(_) => todo!(),
@@ -224,7 +240,7 @@ impl<W: Write> WitSerializer<W> {
     }
 
     #[inline]
-    fn write_indentation(&mut self) -> Res<()> {
+    fn write_indent(&mut self) -> Res<()> {
         for _ in 0..self.level {
             self.write_str(self.indent)?;
         }
@@ -248,7 +264,7 @@ impl<W: Write> WitSerializer<W> {
 
     #[inline]
     fn write_indent_line(&mut self, s: &str) -> Res<()> {
-        self.write_indentation()?;
+        self.write_indent()?;
         self.write_str(s)?;
         self.new_line()
     }
