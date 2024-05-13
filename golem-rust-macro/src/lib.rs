@@ -76,7 +76,7 @@ pub fn golem(_attr: TokenStream, root_item: TokenStream) -> TokenStream {
 
     let result = if let Ok(derive_input) = syn::parse::<syn::DeriveInput>(root_item.clone()) {
         match &derive_input.data {
-            syn::Data::Struct(_) => golem::structure::expand(&item_tokens, &derive_input),
+            syn::Data::Struct(_) => golem::record::expand(&item_tokens, &derive_input),
             syn::Data::Enum(_) => {
                 // Enum can be expanded as enumeration or variant
                 golem::enumeration::expand(&item_tokens, &derive_input)

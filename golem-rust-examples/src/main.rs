@@ -13,6 +13,12 @@ mod trial {
         address: Address,
     }
 
+    #[golem]
+    struct SimpleStruct {
+        name: String,
+        age: u16,
+    }
+
     #[golem()]
     struct Address {
         street: Option<String>,

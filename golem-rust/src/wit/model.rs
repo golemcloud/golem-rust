@@ -1,7 +1,6 @@
 /// Exports that will go into generated WIT file.
 pub trait HasWitExport {
-    const IDENT: &'static str;
-    const WIT: WitExport;
+    const EXPORT: WitExport;
 }
 
 /// Non exported types, usually will be used for references.

@@ -2,9 +2,9 @@ use darling::{ast, util::IdentString, FromDeriveInput};
 use heck::ToPascalCase;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use syn::{spanned::Spanned, FnArg, ReturnType};
+use syn::{punctuated, spanned::Spanned, FnArg, ReturnType};
 
-pub mod structure {
+pub mod record {
     use darling::FromField;
 
     use super::*;
@@ -45,17 +45,21 @@ pub mod structure {
             }
         };
 
+        let meta_ident = make_const_ident(&struct_ident);
+
+        let record_meta = quote! {
+            const #meta_ident: ::golem_rust::RecordMeta = #record_meta;
+        };
+
         let has_wit_export = quote! {
             impl ::golem_rust::HasWitExport for #struct_ident {
-                const IDENT: &'static str = #struct_name;
-
-                const WIT: ::golem_rust::WitExport = ::golem_rust::WitExport::Record(#record_meta);
+                const EXPORT: ::golem_rust::WitExport = ::golem_rust::WitExport::Record(#meta_ident);
             }
         };
 
         let has_wit_ref = quote! {
             impl ::golem_rust::HasWitMeta for #struct_ident {
-                const REF: ::golem_rust::WitMeta = ::golem_rust::WitMeta::Record(#record_meta);
+                const REF: ::golem_rust::WitMeta = ::golem_rust::WitMeta::Record(#meta_ident);
             }
         };
 
@@ -63,6 +67,7 @@ pub mod structure {
 
         Ok(quote! {
             #tokens
+            #record_meta
             #has_wit_export
             #has_wit_ref
             #distributed_slice
@@ -113,16 +118,21 @@ pub mod enumeration {
             }
         };
 
+        let meta_ident = make_const_ident(&enum_ident);
+
+        let enum_meta = quote! {
+            const #meta_ident: ::golem_rust::EnumMeta = #enum_meta;
+        };
+
         let has_wit_export = quote! {
             impl ::golem_rust::HasWitExport for #enum_ident {
-                const IDENT: &'static str = #enum_name;
-                const WIT: ::golem_rust::WitExport = ::golem_rust::WitExport::Enum(#enum_meta);
+                const EXPORT: ::golem_rust::WitExport = ::golem_rust::WitExport::Enum(#meta_ident);
             }
         };
 
         let has_wit_meta = quote! {
             impl ::golem_rust::HasWitMeta for #enum_ident {
-                const REF: ::golem_rust::WitMeta = ::golem_rust::WitMeta::Enum(#enum_meta);
+                const REF: ::golem_rust::WitMeta = ::golem_rust::WitMeta::Enum(#meta_ident);
             }
         };
 
@@ -130,6 +140,7 @@ pub mod enumeration {
 
         Ok(quote! {
             #tokens
+            #enum_meta
             #has_wit_export
             #has_wit_meta
             #distributed_slice
@@ -203,16 +214,21 @@ pub mod variant {
             }
         };
 
+        let meta_ident = make_const_ident(&enum_ident);
+
+        let enum_meta = quote! {
+            const #meta_ident: ::golem_rust::VariantMeta = #variant_meta;
+        };
+
         let has_wit_export = quote! {
             impl ::golem_rust::HasWitExport for #enum_ident {
-                const IDENT: &'static str = #enum_name;
-                const WIT: ::golem_rust::WitExport = ::golem_rust::WitExport::Variant(#variant_meta);
+                const EXPORT: ::golem_rust::WitExport = ::golem_rust::WitExport::Variant(#meta_ident);
             }
         };
 
         let has_wit_ref = quote! {
             impl ::golem_rust::HasWitMeta for #enum_ident {
-                const REF: ::golem_rust::WitMeta = ::golem_rust::WitMeta::Variant(#variant_meta);
+                const REF: ::golem_rust::WitMeta = ::golem_rust::WitMeta::Variant(#meta_ident);
             }
         };
 
@@ -220,6 +236,7 @@ pub mod variant {
 
         Ok(quote! {
             #tokens
+            #enum_meta
             #has_wit_export
             #has_wit_ref
             #distributed_slice
@@ -303,9 +320,7 @@ pub mod function {
 
         let into_wit_impl = quote! {
             impl HasWitExport for #struct_name {
-                const IDENT: &'static str = #function_name_string;
-
-                const WIT: WitExport = WitExport::Function(FunctionMeta {
+                const EXPORT: ::golem_rust::WitExport = ::golem_rust::WitExport::Function(FunctionMeta {
                     name: Ident(#function_name_string),
                     args: #fun_args,
                     result: &#output_type,
@@ -324,6 +339,13 @@ pub mod function {
     }
 }
 
+fn make_const_ident(ident: &IdentString) -> syn::Ident {
+    syn::Ident::new(
+        &format!("__WIT_{}", ident.as_str().to_ascii_uppercase()),
+        ident.span(),
+    )
+}
+
 fn make_distributed_slice(ident: &IdentString) -> TokenStream {
     let slice_ident = syn::Ident::new(
         &format!("{}_WIT", ident.as_str().to_ascii_uppercase()),
@@ -334,7 +356,7 @@ fn make_distributed_slice(ident: &IdentString) -> TokenStream {
 
     quote! {
         #[golem_rust::distributed_slice(crate::ALL_WIT_TYPES_FOR_GOLEM)]
-        static #slice_ident: fn() -> ::golem_rust::WitExport = || #ident::WIT;
+        static #slice_ident: fn() -> ::golem_rust::WitExport = || #ident::EXPORT;
     }
 }
 
@@ -348,19 +370,43 @@ fn type_wit_ref(ty: &syn::Type) -> syn::Result<TokenStream> {
     fn go(ty: &syn::Type) -> syn::Result<TokenStream> {
         match ty {
             syn::Type::Path(syn::TypePath { path, qself: None }) => {
-                let generic_args = match &path.segments.last().unwrap().arguments {
-                    syn::PathArguments::AngleBracketed(args) => Some(&args.args),
-                    _ => None,
+                // remove all generic arguments from path.
+                let segments = path
+                    .segments
+                    .pairs()
+                    .map(|segment| match segment {
+                        punctuated::Pair::Punctuated(segment, punct) => {
+                            punctuated::Pair::Punctuated(
+                                syn::PathSegment {
+                                    ident: segment.ident.clone(),
+                                    arguments: syn::PathArguments::None,
+                                },
+                                punct.clone(),
+                            )
+                        }
+                        punctuated::Pair::End(segment) => punctuated::Pair::End(syn::PathSegment {
+                            ident: segment.ident.clone(),
+                            arguments: syn::PathArguments::None,
+                        }),
+                    })
+                    .collect::<punctuated::Punctuated<_, _>>();
+
+                let updated_path: syn::Path = syn::Path {
+                    leading_colon: path.leading_colon,
+                    segments,
                 };
 
-                let path = path
-                    .segments
-                    .iter()
-                    .map(|segment| segment.ident.to_string())
-                    .collect::<Vec<_>>()
-                    .join("::");
-
-                let path: syn::Path = syn::parse_str(&path).unwrap();
+                let last = path.segments.last().unwrap();
+                let generic_args = match &last.arguments {
+                    syn::PathArguments::AngleBracketed(args) => Some(&args.args),
+                    syn::PathArguments::Parenthesized(_) => {
+                        return Err(syn::Error::new(
+                            last.span(),
+                            "Parehtnesized path arguments are not supported",
+                        ))
+                    }
+                    _ => None,
+                };
 
                 if let Some(generic_args) = generic_args {
                     let generic_types = generic_args
@@ -375,11 +421,11 @@ fn type_wit_ref(ty: &syn::Type) -> syn::Result<TokenStream> {
                         .collect::<Result<Vec<_>, _>>()?;
 
                     Ok(quote! {
-                        #path::<#(#generic_types),*>
+                        #updated_path::<#(#generic_types),*>
                     })
                 } else {
                     Ok(quote! {
-                        #path
+                        #updated_path
                     })
                 }
             }
@@ -465,6 +511,14 @@ mod tests {
         test_make_type_wit_const(
             parse_quote!(std::result::Result<(std::option::Option<String>, u32), String>),
             quote!(std::result::Result::<(std::option::Option::<String>, u32), String>::REF),
+        );
+    }
+
+    #[test]
+    fn test_leading_colon() {
+        test_make_type_wit_const(
+            parse_quote!(::std::result::Result<(::std::option::Option<String>, u32), String>),
+            quote!(::std::result::Result::<(::std::option::Option::<String>, u32), String>::REF),
         );
     }
 }
