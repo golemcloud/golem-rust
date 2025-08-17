@@ -1,5 +1,7 @@
 # golem-rust
 
+**Merged into https://github.com/golemcloud/golem**
+
 This repository contains Rust crates that help writing [Golem](https://golem.cloud) programs.
 
 ## golem-rust
